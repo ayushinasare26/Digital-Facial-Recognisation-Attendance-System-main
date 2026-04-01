@@ -39,7 +39,15 @@
           <td>{{ r[0] }}</td>
           <td>{{ r[1] }}</td>
           <td>
-            <a href="#" class="view-student fw-bold text-decoration-none" data-id="{{ r[1] }}">{{ r[2] }}</a>
+            <div class="d-flex align-items-center gap-2">
+              <img
+                src="{{ url_for('student_image', sid=r[1]) }}"
+                class="student-thumb"
+                alt="Student photo"
+                onerror="this.style.display='none';"
+              />
+              <a href="#" class="view-student fw-bold text-decoration-none" data-id="{{ r[1] }}">{{ r[2] }}</a>
+            </div>
           </td>
           <td>{{ r[3] }}</td>
         </tr>
@@ -82,6 +90,7 @@
   });
 
   // Fetch and show student details in Modal
+  const currentPeriod = "{{ period }}"; // from server: all, daily, weekly, monthly
   document.querySelectorAll('.view-student').forEach(item => {
     item.addEventListener('click', function(e) {
       e.preventDefault();
@@ -92,7 +101,7 @@
       let studentModal = new bootstrap.Modal(document.getElementById('studentModal'));
       studentModal.show();
       
-      fetch('/student/' + sid)
+      fetch('/student/' + sid + '?period=' + encodeURIComponent(currentPeriod))
         .then(response => response.json())
         .then(data => {
           if(data.error) {
@@ -101,8 +110,26 @@
             modalContent.innerHTML = `
               <table class="table table-bordered mb-0">
                 <tbody>
+                  <tr>
+                    <th class="bg-light">Photo</th>
+                    <td>
+                      <img
+                        src="/student_image/${data.id}"
+                        style="width:90px;height:90px;object-fit:cover;border-radius:50%;border:1px solid rgba(15,23,42,0.12);"
+                        onerror="this.style.display='none';"
+                      />
+                    </td>
+                  </tr>
                   <tr><th class="bg-light">Name</th><td>${data.name}</td></tr>
                   <tr><th class="bg-light">Student ID</th><td>${data.id}</td></tr>
+                  <tr><th class="bg-light">Total sessions (${currentPeriod})</th><td>${data.total_sessions ?? 0}</td></tr>
+                  <tr><th class="bg-light">Sessions attended</th><td>${data.sessions_attended ?? 0}</td></tr>
+                  <tr>
+                    <th class="bg-light">Attendance ratio</th>
+                    <td>
+                      ${(data.sessions_attended ?? 0)}/${(data.total_sessions ?? 0)} ( ${(data.attendance_percent ?? 0)}% )
+                    </td>
+                  </tr>
                   <tr><th class="bg-light">Roll No</th><td>${data.roll}</td></tr>
                   <tr><th class="bg-light">Class</th><td>${data.class}</td></tr>
                   <tr><th class="bg-light">Section</th><td>${data.section}</td></tr>

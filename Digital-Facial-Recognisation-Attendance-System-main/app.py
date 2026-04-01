@@ -40,6 +40,25 @@ def init_db():
 
 init_db()
 
+# -------- Student image helper --------
+def get_latest_student_image_path(sid: int):
+    """
+    Returns the most recently modified image file for a given student id
+    from dataset/<sid>/.
+    """
+    folder = os.path.join(DATASET_DIR, str(sid))
+    if not os.path.isdir(folder):
+        return None
+
+    exts = (".jpg", ".jpeg", ".png", ".webp")
+    files = [f for f in os.listdir(folder) if f.lower().endswith(exts)]
+    if not files:
+        return None
+
+    # Pick the newest capture among the dataset images.
+    files.sort(key=lambda f: os.path.getmtime(os.path.join(folder, f)), reverse=True)
+    return os.path.join(folder, files[0])
+
 # ---------- Train status helpers ----------
 def write_train_status(status_dict):
     with open(TRAIN_STATUS_FILE, "w") as f:
@@ -247,14 +266,76 @@ def students_list():
 
 @app.route("/student/<int:sid>", methods=["GET"])
 def get_student(sid):
+    period = (request.args.get("period", "all") or "all").lower()  # daily, weekly, monthly, all
+    today = datetime.date.today().isoformat()
+    conditions = []
+    params = []
+    if period == "daily":
+        conditions.append("date(timestamp)=?")
+        params.append(today)
+    elif period == "weekly":
+        start = (datetime.date.today() - datetime.timedelta(days=7)).isoformat()
+        conditions.append("date(timestamp)>=?")
+        params.append(start)
+    elif period == "monthly":
+        start = (datetime.date.today() - datetime.timedelta(days=30)).isoformat()
+        conditions.append("date(timestamp)>=?")
+        params.append(start)
+
+    where_clause = (" WHERE " + " AND ".join(conditions)) if conditions else ""
+
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
     c.execute("SELECT id, name, roll, class, section, reg_no, created_at FROM students WHERE id=?", (sid,))
     row = c.fetchone()
+
+    # Attendance percentage for this student in the requested period:
+    # (days present by this student) / (distinct days where any attendance was recorded) * 100
+    c.execute(
+        "SELECT COUNT(DISTINCT date(timestamp)) FROM attendance" + where_clause,
+        tuple(params),
+    )
+    total_days_row = c.fetchone()
+    total_days = int(total_days_row[0]) if total_days_row and total_days_row[0] is not None else 0
+
+    student_params = [sid] + params
+    c.execute(
+        "SELECT COUNT(DISTINCT date(timestamp)) FROM attendance WHERE student_id=?"
+        + (" AND " + " AND ".join(conditions) if conditions else ""),
+        tuple(student_params),
+    )
+    student_days_row = c.fetchone()
+    student_days = int(student_days_row[0]) if student_days_row and student_days_row[0] is not None else 0
+
+    attendance_percent = (student_days / total_days * 100.0) if total_days > 0 else 0.0
+    attendance_ratio = (student_days / total_days) if total_days > 0 else 0.0
+
     conn.close()
     if row:
-        return jsonify({"id":row[0], "name":row[1], "roll":row[2], "class":row[3], "section":row[4], "reg_no":row[5], "created_at":row[6]})
+        return jsonify({
+            "id": row[0],
+            "name": row[1],
+            "roll": row[2],
+            "class": row[3],
+            "section": row[4],
+            "reg_no": row[5],
+            "created_at": row[6],
+            "total_sessions": total_days,
+            "sessions_attended": student_days,
+            "attendance_ratio": round(attendance_ratio, 4),
+            "attendance_percent": round(attendance_percent, 2),
+        })
     return jsonify({"error":"Not found"}), 404
+
+@app.route("/student_image/<int:sid>", methods=["GET"])
+def student_image(sid):
+    image_path = get_latest_student_image_path(sid)
+    if not image_path or not os.path.exists(image_path):
+        abort(404)
+
+    import mimetypes
+    mimetype = mimetypes.guess_type(image_path)[0] or "image/jpeg"
+    return send_file(image_path, mimetype=mimetype)
 
 @app.route("/students/<int:sid>", methods=["DELETE"])
 def delete_student(sid):

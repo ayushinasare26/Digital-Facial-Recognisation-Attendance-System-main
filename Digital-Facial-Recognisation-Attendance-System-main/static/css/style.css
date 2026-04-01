@@ -153,3 +153,13 @@ h5, h4, h3 {
     max-width: 500px;
   }
 }
+
+/* --- Student thumbnails (attendance records) --- */
+.student-thumb {
+  width: 34px;
+  height: 34px;
+  object-fit: cover;
+  border-radius: 50%;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  background: #f1f5f9;
+}
