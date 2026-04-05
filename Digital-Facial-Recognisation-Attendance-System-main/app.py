@@ -76,24 +76,78 @@ write_train_status({"running": False, "progress": 0, "message": "No training yet
 # ---------- Routes ----------
 @app.route("/")
 def index():
-    return render_template("index.html")
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    
+    # Fetch recent logs
+    c.execute("SELECT id, student_id, name, timestamp FROM attendance ORDER BY timestamp DESC LIMIT 5")
+    recent_records = c.fetchall()
+    
+    recent_logs = []
+    for r in recent_records:
+        try:
+            dt = datetime.datetime.fromisoformat(r[3])
+            time_str = dt.strftime("%I:%M %p")
+        except:
+            time_str = r[3]
+        recent_logs.append((r[0], r[1], r[2], time_str))
+        
+    # Fetch today's present count
+    today_date = datetime.datetime.utcnow().date().isoformat()
+    c.execute("SELECT COUNT(DISTINCT student_id) FROM attendance WHERE date(timestamp)=?", (today_date,))
+    present_today_row = c.fetchone()
+    present_today = present_today_row[0] if present_today_row else 0
+    
+    # Fetch total students count
+    c.execute("SELECT COUNT(id) FROM students")
+    total_students_row = c.fetchone()
+    total_students = total_students_row[0] if total_students_row else 0
+    
+    conn.close()
+    
+    return render_template("index.html", recent_logs=recent_logs, present_today=present_today, total_students=total_students)
+
+@app.route("/students_page")
+def students_page():
+    return render_template("students_directory.html")
 
 # Dashboard simple API for attendance stats (last 30 days)
 @app.route("/attendance_stats")
 def attendance_stats():
     import pandas as pd
     conn = sqlite3.connect(DB_PATH)
+    
+    # Get total registered students
+    c = conn.cursor()
+    c.execute("SELECT COUNT(id) FROM students")
+    total_stu_row = c.fetchone()
+    total_students = int(total_stu_row[0]) if total_stu_row and total_stu_row[0] else 0
+
     df = pd.read_sql_query("SELECT timestamp FROM attendance", conn)
     conn.close()
+
+    from datetime import date, timedelta
+    
     if df.empty:
-        from datetime import date, timedelta
-        days = [(date.today() - datetime.timedelta(days=i)).strftime("%d-%b") for i in range(29, -1, -1)]
-        return jsonify({"dates": days, "counts": [0]*30})
+        days = [(date.today() - timedelta(days=i)).strftime("%d-%b") for i in range(29, -1, -1)]
+        return jsonify({"dates": days, "counts": [0]*30, "absent_counts": [total_students]*30, "total_students": total_students})
+        
     df['date'] = pd.to_datetime(df['timestamp']).dt.date
     last_30 = [ (datetime.date.today() - datetime.timedelta(days=i)) for i in range(29, -1, -1) ]
-    counts = [ int(df[df['date'] == d].shape[0]) for d in last_30 ]
+    
+    counts = []
+    absent_counts = []
+    for d in last_30:
+        present_count = int(df[df['date'] == d].shape[0])
+        counts.append(present_count)
+        
+        # Absent = total_students - present
+        # Prevent negative if present count happens to exceed total somehow (e.g. duplicates)
+        absent = total_students - present_count
+        absent_counts.append(absent if absent > 0 else 0)
+        
     dates = [ d.strftime("%d-%b") for d in last_30 ]
-    return jsonify({"dates": dates, "counts": counts})
+    return jsonify({"dates": dates, "counts": counts, "absent_counts": absent_counts, "total_students": total_students})
 
 # -------- Add student (form) --------
 @app.route("/add_student", methods=["GET", "POST"])
@@ -209,6 +263,35 @@ def recognize_face():
     except Exception as e:
         app.logger.exception("recognize error")
         return jsonify({"recognized": False, "error": str(e)}), 500
+
+# -------- API: Logs by Date (for Calendar) --------
+@app.route("/api/logs_by_date", methods=["GET"])
+def logs_by_date():
+    target_date = request.args.get("date")
+    if not target_date:
+        return jsonify({"error": "Missing date parameter"}), 400
+        
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("SELECT id, student_id, name, timestamp FROM attendance WHERE date(timestamp)=? ORDER BY timestamp DESC", (target_date,))
+    rows = c.fetchall()
+    conn.close()
+    
+    logs = []
+    for r in rows:
+        try:
+            dt = datetime.datetime.fromisoformat(r[3])
+            time_str = dt.strftime("%I:%M %p")
+        except:
+            time_str = r[3]
+        logs.append({
+            "id": r[0],
+            "student_id": r[1],
+            "name": r[2],
+            "time_str": time_str
+        })
+        
+    return jsonify({"logs": logs})
 
 # -------- Attendance records & filters --------
 @app.route("/attendance_record", methods=["GET"])

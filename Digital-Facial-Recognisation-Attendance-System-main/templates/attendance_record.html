@@ -1,77 +1,75 @@
-<!doctype html>
-<html>
-<head>
-  <meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>Attendance Records</title>
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.1/dist/css/bootstrap.min.css" rel="stylesheet">
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
-</head>
-<body>
-<div class="container my-4">
-  <div class="d-flex justify-content-between align-items-center mb-3">
-    <h4>Attendance Records</h4>
-    <div>
-      <a class="btn btn-outline-primary" href="/download_csv">Download CSV</a>
-      <a class="btn btn-outline-secondary" href="/">Back</a>
+{% extends "base.html" %}
+{% block title %}Reports | FaceCheck{% endblock %}
+{% block content %}
+<div class="glass-card shadow-sm pt-4">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h4 class="mb-0 card-title fs-4">Attendance Reports</h4>
+    <div class="d-flex gap-2">
+      <a class="btn btn-outline-primary fw-bold" href="/download_csv"><i class="bi bi-download me-1"></i> Export CSV</a>
     </div>
   </div>
 
-  <div class="d-flex justify-content-between mb-3 align-items-center">
-    <div>
-      <a href="/attendance_record?period=all" class="btn btn-sm btn-light">All</a>
-      <a href="/attendance_record?period=daily" class="btn btn-sm btn-light">Daily</a>
-      <a href="/attendance_record?period=weekly" class="btn btn-sm btn-light">Weekly</a>
-      <a href="/attendance_record?period=monthly" class="btn btn-sm btn-light">Monthly</a>
+  <div class="d-flex justify-content-between mb-4 align-items-center bg-light p-3 rounded-pill">
+    <div class="d-flex gap-1">
+      <a href="/attendance_record?period=all" class="btn btn-sm {% if period == 'all' %}btn-primary text-white{% else %}btn-light text-muted{% endif %} rounded-pill px-3 fw-bold">All</a>
+      <a href="/attendance_record?period=daily" class="btn btn-sm {% if period == 'daily' %}btn-primary text-white{% else %}btn-light text-muted{% endif %} rounded-pill px-3 fw-bold">Daily</a>
+      <a href="/attendance_record?period=weekly" class="btn btn-sm {% if period == 'weekly' %}btn-primary text-white{% else %}btn-light text-muted{% endif %} rounded-pill px-3 fw-bold">Weekly</a>
+      <a href="/attendance_record?period=monthly" class="btn btn-sm {% if period == 'monthly' %}btn-primary text-white{% else %}btn-light text-muted{% endif %} rounded-pill px-3 fw-bold">Monthly</a>
     </div>
     <div>
-      <input type="text" id="searchInput" class="form-control form-control-sm" placeholder="Search by name or ID...">
+      <div class="position-relative">
+          <i class="bi bi-search position-absolute top-50 start-0 translate-middle-y ms-3 text-muted"></i>
+          <input type="text" id="searchInput" class="form-control form-control-sm border-0 shadow-sm rounded-pill ps-5 py-2" placeholder="Search logs..." style="width:250px;">
+      </div>
     </div>
   </div>
 
   <div class="table-responsive">
-    <table class="table table-striped">
-      <thead class="table-dark">
-        <tr><th>ID</th><th>Student ID</th><th>Name</th><th>Timestamp (UTC)</th></tr>
+    <table class="table table-hover align-middle border">
+      <thead class="table-light">
+        <tr><th class="ps-3">Log ID</th><th>Student ID</th><th>Name / Profile</th><th>Timestamp (UTC)</th></tr>
       </thead>
       <tbody>
       {% for r in records %}
         <tr>
-          <td>{{ r[0] }}</td>
-          <td>{{ r[1] }}</td>
+          <td class="text-muted ps-3">#{{ r[0] }}</td>
+          <td class="fw-bold text-muted">{{ r[1] }}</td>
           <td>
-            <div class="d-flex align-items-center gap-2">
+            <div class="d-flex align-items-center gap-3">
               <img
                 src="{{ url_for('student_image', sid=r[1]) }}"
                 class="student-thumb"
-                alt="Student photo"
-                onerror="this.style.display='none';"
+                alt="Photo"
+                onerror="this.src='https://ui-avatars.com/api/?name={{ r[2]|urlencode }}&background=f1f5f9';"
               />
-              <a href="#" class="view-student fw-bold text-decoration-none" data-id="{{ r[1] }}">{{ r[2] }}</a>
+              <a href="#" class="view-student fw-bold text-dark text-decoration-none" data-id="{{ r[1] }}">{{ r[2] }}</a>
             </div>
           </td>
-          <td>{{ r[3] }}</td>
+          <td><span class="badge bg-light text-dark border p-2">{{ r[3] }}</span></td>
         </tr>
       {% endfor %}
       </tbody>
     </table>
   </div>
+</div>
 
 <!-- Student Detail Modal -->
-<div class="modal fade" id="studentModal" tabindex="-1" aria-labelledby="studentModalLabel" aria-hidden="true">
+<div class="modal fade" id="studentModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h5 class="modal-title" id="studentModalLabel">Student Details</h5>
+    <div class="modal-content border-0 shadow-lg" style="border-radius: 20px;">
+      <div class="modal-header border-0 pb-0">
+        <h5 class="modal-title fw-bold" id="studentModalLabel">Student Details</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
-      <div class="modal-body">
-        <div id="studentDetailContent">Loading...</div>
+      <div class="modal-body pt-2">
+        <div id="studentDetailContent" class="text-center p-4">Loading stats...</div>
       </div>
     </div>
   </div>
 </div>
+{% endblock %}
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.1/dist/js/bootstrap.bundle.min.js"></script>
+{% block scripts %}
 <script>
   // Search feature
   document.getElementById('searchInput').addEventListener('keyup', function() {
@@ -90,13 +88,13 @@
   });
 
   // Fetch and show student details in Modal
-  const currentPeriod = "{{ period }}"; // from server: all, daily, weekly, monthly
+  const currentPeriod = "{{ period|default('all') }}";
   document.querySelectorAll('.view-student').forEach(item => {
     item.addEventListener('click', function(e) {
       e.preventDefault();
       let sid = this.getAttribute('data-id');
       let modalContent = document.getElementById('studentDetailContent');
-      modalContent.innerHTML = 'Loading...';
+      modalContent.innerHTML = '<div class="spinner-border text-primary"></div>';
       
       let studentModal = new bootstrap.Modal(document.getElementById('studentModal'));
       studentModal.show();
@@ -107,35 +105,34 @@
           if(data.error) {
             modalContent.innerHTML = '<div class="alert alert-danger">' + data.error + '</div>';
           } else {
+            const rawPct = data.attendance_percent ?? 0;
+            const pct = Math.round(rawPct);
+            let pctColor = "text-success";
+            if (pct < 50) pctColor = "text-danger";
+            else if (pct < 75) pctColor = "text-warning";
+
             modalContent.innerHTML = `
-              <table class="table table-bordered mb-0">
-                <tbody>
-                  <tr>
-                    <th class="bg-light">Photo</th>
-                    <td>
-                      <img
-                        src="/student_image/${data.id}"
-                        style="width:90px;height:90px;object-fit:cover;border-radius:50%;border:1px solid rgba(15,23,42,0.12);"
-                        onerror="this.style.display='none';"
-                      />
-                    </td>
-                  </tr>
-                  <tr><th class="bg-light">Name</th><td>${data.name}</td></tr>
-                  <tr><th class="bg-light">Student ID</th><td>${data.id}</td></tr>
-                  <tr><th class="bg-light">Total sessions (${currentPeriod})</th><td>${data.total_sessions ?? 0}</td></tr>
-                  <tr><th class="bg-light">Sessions attended</th><td>${data.sessions_attended ?? 0}</td></tr>
-                  <tr>
-                    <th class="bg-light">Attendance ratio</th>
-                    <td>
-                      ${(data.sessions_attended ?? 0)}/${(data.total_sessions ?? 0)} ( ${(data.attendance_percent ?? 0)}% )
-                    </td>
-                  </tr>
-                  <tr><th class="bg-light">Roll No</th><td>${data.roll}</td></tr>
-                  <tr><th class="bg-light">Class</th><td>${data.class}</td></tr>
-                  <tr><th class="bg-light">Section</th><td>${data.section}</td></tr>
-                  <tr><th class="bg-light">Registration No</th><td>${data.reg_no}</td></tr>
-                </tbody>
-              </table>
+              <img src="/student_image/${data.id}?t=${new Date().getTime()}" 
+                   style="width:120px;height:120px;object-fit:cover;border-radius:50%;border:4px solid #f8fafc;box-shadow:0 4px 10px rgba(0,0,0,0.1);" 
+                   onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(data.name)}&background=f1f5f9';" class="mb-3"/>
+              
+              <h4 class="mb-0 fw-bold">${data.name}</h4>
+              <p class="text-muted small mb-4">${data.class || 'No Dept'} | ID: ${data.id}</p>
+
+              <div class="row g-2 text-center">
+                  <div class="col-6">
+                      <div class="bg-light rounded p-3">
+                          <div class="fs-4 fw-bold text-primary">${data.sessions_attended ?? 0}</div>
+                          <div class="small fw-bold text-muted text-uppercase" style="font-size:0.7rem;">Sessions</div>
+                      </div>
+                  </div>
+                  <div class="col-6">
+                      <div class="bg-light rounded p-3">
+                          <div class="fs-4 fw-bold ${pctColor}">${pct}%</div>
+                          <div class="small fw-bold text-muted text-uppercase" style="font-size:0.7rem;">Attendance</div>
+                      </div>
+                  </div>
+              </div>
             `;
           }
         })
@@ -145,5 +142,4 @@
     });
   });
 </script>
-</body>
-</html>
+{% endblock %}

@@ -1,165 +1,169 @@
-/* =========================
-   Global Styles
-   ========================= */
+/* Global Reset & Typography */
 html, body {
-  height: 100%;
   margin: 0;
-}
-
-body {
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-  background: url('static/images/bg.png') no-repeat center center fixed;
-  background-size: contain;
-  margin: 0;
+  padding: 0;
+  min-height: 100vh;
+  font-family: 'Inter', sans-serif;
+  /* FaceCheck Gradient Background */
+  background: linear-gradient(145deg, #e0f0ff 0%, #f4ebff 100%);
+  background-attachment: fixed;
   color: #1e293b;
-  display: flex;                     /* right-side alignment */
-  justify-content: flex-end;
-  align-items: flex-start;
-  padding: 2rem;                      /* spacing around the panel */
 }
 
-/* Optional overlay if background is busy */
-
- body::before {
-  content: '';
-  position: fixed;
-  inset: 0;
-  background: rgba(255,255,255,0.4);
-  z-index: -1;
-} 
-
-h5, h4, h3 {
+h1, h2, h3, h4, h5, h6 {
   font-weight: 600;
+  letter-spacing: -0.02em;
 }
 
-/* =========================
-   Right Panel Wrapper
-   ========================= */
-.right-panel {
-  width: 420px;                       /* fixed column width */
-  max-width: 90vw;
-  background: rgba(255, 255, 255, 0.92);
-  border-radius: 1rem;
-  padding: 2rem 1.5rem;
-  box-shadow: 0 6px 18px rgba(0,0,0,0.08);
-  overflow-y: auto;                   /* scroll if content grows */
-}
-
-/* Keep Bootstrap rows/cards inside panel tidy */
-.right-panel .row {
-  margin: 0;
-  width: 100%;
+/* Sidebar Layout */
+.app-container {
   display: flex;
-  flex-direction: column;
-  gap: 1.5rem;                         /* spacing between cards */
 }
 
-.right-panel .col-lg-4,
-.right-panel .col-lg-8 {
-  flex: 0 0 auto;         /* stop Bootstrap from auto-stretching */
-  max-width: none;        /* remove the percentage width constraint */
+.sidebar {
+  width: 260px;
+  top: 0;
+  left: 0;
+  background: linear-gradient(to bottom, #d6e8ff, #e3f2ff) !important;
+  border-right: 1px solid rgba(255, 255, 255, 0.5);
+  box-shadow: 4px 0 24px rgba(0,0,0,0.03);
+  z-index: 1000;
 }
 
-/* =========================
-   Card Styles
-   ========================= */
-.card {
-  border: none;
-  border-radius: 1rem;
-  background: rgba(255, 255, 255, 0.96);
-  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
-}
-
-.card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 8px 20px rgba(0,0,0,0.12);
-}
-
-.card h5 {
-  color: #0f172a;
-}
-
-.card .btn {
-  border-radius: 0.6rem;
+.sidebar-nav .nav-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 20px;
+  color: #475569;
+  text-decoration: none;
   font-weight: 500;
-  transition: background-color 0.2s ease;
+  border-radius: 12px;
+  transition: all 0.2s ease;
+  margin-bottom: 4px;
 }
 
-.card .btn-primary:hover,
-.card .btn-success:hover,
-.card .btn-warning:hover {
-  filter: brightness(0.95);
+.sidebar-nav .nav-item i {
+  font-size: 1.1rem;
 }
 
-/* =========================
-   Progress Bar & Chart
-   ========================= */
-.progress {
-  background-color: #e2e8f0;
-  border-radius: 1rem;
+.sidebar-nav .nav-item:hover {
+  background: rgba(255, 255, 255, 0.4);
 }
 
-.progress-bar {
-  background: linear-gradient(90deg, #3b82f6, #2563eb);
+.sidebar-nav .nav-item.active {
+  background: white;
+  color: #0f172a;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.04);
   font-weight: 600;
-  border-radius: 1rem;
+}
+.sidebar-nav .nav-item.active i {
+  color: #3b82f6;
 }
 
-#attendanceChart {
-  max-height: 320px;
+/* Main Content Area */
+.main-content {
+  flex: 1;
+  margin-left: 260px; /* offset for fixed sidebar */
+  min-height: 100vh;
 }
 
-/* =========================
-   Navbar & Utilities
-   ========================= */
-.navbar {
-  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+/* Glassmorphism Cards */
+.glass-card {
+  background: #ffffff;
+  border-radius: 18px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.03);
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  padding: 20px;
+  transition: transform 0.2s ease;
 }
 
-.navbar-brand {
-  font-size: 1.4rem;
+.glass-card:hover {
+  box-shadow: 0 12px 40px rgba(0,0,0,0.05);
+}
+
+.card-title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #334155;
+  margin-bottom: 1rem;
+}
+
+/* Stats Styling */
+.stat-mega {
+  font-size: 2.5rem;
+  font-weight: 700;
+  color: #0f172a;
+  line-height: 1;
+}
+
+.stat-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #64748b;
+  text-transform: uppercase;
   letter-spacing: 0.5px;
 }
 
-.btn-outline-light {
-  border-radius: 0.5rem;
-  transition: all 0.2s ease;
+/* Gradient Buttons */
+.btn-grad {
+  border: none;
+  color: white;
+  font-weight: 500;
+  padding: 10px 20px;
+  border-radius: 10px;
+  transition: opacity 0.2s ease, transform 0.1s ease;
+}
+.btn-grad:hover {
+  opacity: 0.9;
+  color: white;
+  transform: translateY(-1px);
+}
+.btn-grad-cyan {
+  background: linear-gradient(90deg, #38bdf8, #34d399);
+}
+.btn-grad-purple {
+  background: linear-gradient(90deg, #818cf8, #c084fc);
+}
+.btn-grad-orange {
+  background: linear-gradient(90deg, #fb923c, #f43f5e);
 }
 
-.btn-outline-light:hover {
-  background-color: rgba(255, 255, 255, 0.2);
-  color: #fff;
+/* Tables and Modals inherited upgrades */
+.table {
+  background: white;
+  border-radius: 10px;
+  overflow: hidden;
+}
+.table thead {
+  background: #f8fafc;
+}
+.table th {
+  font-weight: 600;
+  color: #64748b;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  border-bottom: none;
+}
+.table td {
+  vertical-align: middle;
+  color: #334155;
+  border-bottom-color: #f1f5f9;
 }
 
-.text-muted {
-  color: #64748b !important;
-}
-
-.shadow-sm {
-  box-shadow: 0 2px 8px rgba(0,0,0,0.08) !important;
-}
-
-/* =========================
-   Responsive
-   ========================= */
-@media (max-width: 768px) {
-  body {
-    justify-content: center;          /* center on small screens */
-    padding: 1rem;
-  }
-  .right-panel {
-    width: 100%;
-    max-width: 500px;
-  }
-}
-
-/* --- Student thumbnails (attendance records) --- */
+/* Student Image Thumbnails */
 .student-thumb {
-  width: 34px;
-  height: 34px;
+  width: 38px;
+  height: 38px;
   object-fit: cover;
   border-radius: 50%;
-  border: 1px solid rgba(15, 23, 42, 0.12);
+  border: 1px solid rgba(15, 23, 42, 0.08);
   background: #f1f5f9;
+}
+
+/* Custom Chart Container */
+.chart-container {
+  position: relative;
+  height: 250px;
+  width: 100%;
 }
