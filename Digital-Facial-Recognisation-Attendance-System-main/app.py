@@ -92,7 +92,7 @@ def index():
             time_str = r[3]
         recent_logs.append((r[0], r[1], r[2], time_str))
         
-    # Fetch today's present count
+    # Fetch today's present count (UTC)
     today_date = datetime.datetime.utcnow().date().isoformat()
     c.execute("SELECT COUNT(DISTINCT student_id) FROM attendance WHERE date(timestamp)=?", (today_date,))
     present_today_row = c.fetchone()
@@ -107,9 +107,49 @@ def index():
     
     return render_template("index.html", recent_logs=recent_logs, present_today=present_today, total_students=total_students)
 
+@app.route("/students")
 @app.route("/students_page")
 def students_page():
-    return render_template("students_directory.html")
+    filter_type = request.args.get('filter', 'all')
+    
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    
+    # Get today's date
+    today_date = datetime.datetime.utcnow().date().isoformat()
+    
+    if filter_type == 'present':
+        # Get students who marked attendance today
+        c.execute("""
+            SELECT DISTINCT s.id, s.name, s.roll, s.class, s.section 
+            FROM students s
+            INNER JOIN attendance a ON s.id = a.student_id
+            WHERE date(a.timestamp) = ?
+            ORDER BY s.name
+        """, (today_date,))
+        page_title = "Present Students Today"
+    elif filter_type == 'absent':
+        # Get students who did NOT mark attendance today
+        c.execute("""
+            SELECT s.id, s.name, s.roll, s.class, s.section 
+            FROM students s
+            WHERE s.id NOT IN (
+                SELECT DISTINCT student_id 
+                FROM attendance 
+                WHERE date(timestamp) = ?
+            )
+            ORDER BY s.name
+        """, (today_date,))
+        page_title = "Absent Students Today"
+    else:
+        # Get all students
+        c.execute("SELECT id, name, roll, class, section FROM students ORDER BY name")
+        page_title = "All Students"
+    
+    students = c.fetchall()
+    conn.close()
+    
+    return render_template("students_directory.html", students=students, filter_type=filter_type, page_title=page_title)
 
 # Dashboard simple API for attendance stats (last 30 days)
 @app.route("/attendance_stats")
@@ -239,11 +279,11 @@ def recognize_face():
             app.logger.info("recognize_face: model not trained")
             return jsonify({"recognized": False, "error":"model not trained"}), 200
         pred_label, conf = predict_with_model(clf, emb)
-        app.logger.info(f"recognize_face: predicted {pred_label} with config {conf}")
-        # threshold confidence
-        if conf < 0.4:
-            app.logger.info(f"recognize_face: confidence {conf} < 0.4")
-            return jsonify({"recognized": False, "confidence": float(conf)}), 200
+        app.logger.info(f"recognize_face: predicted {pred_label} with confidence {conf}")
+        # threshold confidence - adjusted to work with blur images
+        if conf < 0.50:
+            app.logger.info(f"recognize_face: confidence {conf} < 0.50 (too low)")
+            return jsonify({"recognized": False, "error": "Low confidence - face not clearly recognized", "confidence": float(conf)}), 200
         # find student name
         conn = sqlite3.connect(DB_PATH)
         c = conn.cursor()
@@ -254,7 +294,7 @@ def recognize_face():
         today_date = datetime.datetime.utcnow().date().isoformat()
         c.execute("SELECT id FROM attendance WHERE student_id=? AND date(timestamp)=?", (int(pred_label), today_date))
         if not c.fetchone():
-            # save attendance record with timestamp
+            # save attendance record with timestamp (UTC)
             ts = datetime.datetime.utcnow().isoformat()
             c.execute("INSERT INTO attendance (student_id, name, timestamp) VALUES (?, ?, ?)", (int(pred_label), name, ts))
             conn.commit()

@@ -8,18 +8,33 @@ MODEL_PATH = "model.pkl"
 
 def crop_face_and_embed(bgr_image, bbox):
     x, y, w, h = bbox
+    # Add padding around face for better context
+    padding = int(0.2 * min(w, h))
+    x = max(0, x - padding)
+    y = max(0, y - padding)
+    w = w + 2 * padding
+    h = h + 2 * padding
+    
     face = bgr_image[y:y+h, x:x+w]
     face = cv2.cvtColor(face, cv2.COLOR_BGR2GRAY)
-    face = cv2.resize(face, (32,32), interpolation=cv2.INTER_AREA)
+    # Apply denoising to handle blur better
+    face = cv2.fastNlMeansDenoising(face, None, 10, 7, 21)
+    # Increase resolution for better features
+    face = cv2.resize(face, (64, 64), interpolation=cv2.INTER_CUBIC)
+    # Apply histogram equalization for better lighting normalization
+    face = cv2.equalizeHist(face)
     emb = face.flatten().astype(np.float32) / 255.0
     return emb
 
 def get_face_bbox(img_bgr):
     gray = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY)
     face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
-    faces = face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5, minSize=(30, 30))
+    # Relaxed detection parameters to work with blur images
+    faces = face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=4, minSize=(40, 40))
     if len(faces) > 0:
-        return faces[0]  # x, y, w, h
+        # Return the largest face detected
+        largest_face = max(faces, key=lambda f: f[2] * f[3])
+        return largest_face  # x, y, w, h
     return None
 
 def extract_embedding_for_image(stream_or_bytes):
@@ -79,7 +94,8 @@ def train_model_background(dataset_dir, progress_callback=None):
     y = np.array(y)
 
     if progress_callback: progress_callback(85, "Training RandomForest...")
-    clf = RandomForestClassifier(n_estimators=150, n_jobs=-1, random_state=42)
+    # Improved model with more estimators for better accuracy
+    clf = RandomForestClassifier(n_estimators=200, max_depth=20, min_samples_split=5, n_jobs=-1, random_state=42)
     clf.fit(X, y)
 
     with open(MODEL_PATH, "wb") as f:

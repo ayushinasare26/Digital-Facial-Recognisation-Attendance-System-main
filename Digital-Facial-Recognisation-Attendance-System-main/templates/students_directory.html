@@ -3,8 +3,13 @@
 {% block content %}
 <div class="glass-card shadow-sm pt-4">
   <div class="d-flex justify-content-between align-items-center mb-4">
-      <h4 class="mb-0 card-title fs-4">Students Directory</h4>
-      <a href="/add_student" class="btn btn-outline-primary fw-bold"><i class="bi bi-person-plus me-1"></i> Add Student</a>
+      <h4 class="mb-0 card-title fs-4">{{ page_title if page_title else 'Students Directory' }}</h4>
+      <div class="d-flex gap-2">
+          <a href="/students?filter=all" class="btn btn-sm btn-outline-secondary fw-bold">All</a>
+          <a href="/students?filter=present" class="btn btn-sm btn-outline-success fw-bold">Present</a>
+          <a href="/students?filter=absent" class="btn btn-sm btn-outline-danger fw-bold">Absent</a>
+          <a href="/add_student" class="btn btn-outline-primary fw-bold"><i class="bi bi-person-plus me-1"></i> Add Student</a>
+      </div>
   </div>
   
   <div class="table-responsive">
@@ -19,7 +24,24 @@
         </tr>
       </thead>
       <tbody id="studentsTableBody">
-        <tr><td colspan="5" class="text-center p-4">Loading directory...</td></tr>
+        {% if students %}
+          {% for s in students %}
+          <tr>
+            <td class="text-muted ps-3">#{{ s[0] }}</td>
+            <td class="fw-bold align-middle text-dark">
+                <img src="{{ url_for('student_image', sid=s[0]) }}" class="student-thumb me-3 shadow-sm" alt="Profile" onerror="this.src='https://ui-avatars.com/api/?name={{ s[1]|urlencode }}&background=f1f5f9';">
+                {{ s[1] }}
+            </td>
+            <td class="text-muted fw-bold">{{ s[2] if s[2] else 'N/A' }}</td>
+            <td class="text-muted">{{ s[3] if s[3] else '' }} {{ s[4] if s[4] else '' }}</td>
+            <td>
+                <button class="btn btn-sm btn-light fw-bold px-3 rounded-pill text-primary" onclick="viewStudent({{ s[0] }})">Profile</button>
+            </td>
+          </tr>
+          {% endfor %}
+        {% else %}
+          <tr><td colspan="5" class="text-center p-4">No students found.</td></tr>
+        {% endif %}
       </tbody>
     </table>
   </div>
@@ -70,47 +92,6 @@
 
 {% block scripts %}
 <script>
-document.addEventListener("DOMContentLoaded", () => {
-    loadStudents();
-});
-
-function loadStudents() {
-    fetch("/students")
-        .then(res => res.json())
-        .then(data => {
-            const tbody = document.getElementById("studentsTableBody");
-            tbody.innerHTML = "";
-            const students = data.students;
-            
-            if (!students || students.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="5" class="text-center p-4">No employees registered yet.</td></tr>';
-                return;
-            }
-
-            students.forEach(s => {
-                const imgUrl = '/student_image/' + s.id;
-                const tr = document.createElement("tr");
-                tr.innerHTML = `
-                    <td class="text-muted ps-3">#${s.id}</td>
-                    <td class="fw-bold align-middle text-dark">
-                        <img src="${imgUrl}" class="student-thumb me-3 shadow-sm" alt="Profile" onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(s.name)}&background=f1f5f9';">
-                        ${escapeHTML(s.name)}
-                    </td>
-                    <td class="text-muted fw-bold">${escapeHTML(s.roll)}</td>
-                    <td class="text-muted">${escapeHTML(s.class)} ${escapeHTML(s.section)}</td>
-                    <td>
-                        <button class="btn btn-sm btn-light fw-bold px-3 rounded-pill text-primary" onclick="viewStudent(${s.id})">Profile</button>
-                    </td>
-                `;
-                tbody.appendChild(tr);
-            });
-        })
-        .catch(err => {
-            console.error(err);
-            document.getElementById("studentsTableBody").innerHTML = '<tr><td colspan="5" class="text-center text-danger">Error loading directory.</td></tr>';
-        });
-}
-
 function viewStudent(sid) {
     const modal = new bootstrap.Modal(document.getElementById('studentModal'));
     modal.show();
@@ -156,19 +137,6 @@ function viewStudent(sid) {
 function totalSessionsOverride(data) {
     if (data.total_sessions < data.sessions_attended) return data.sessions_attended;
     return data.total_sessions;
-}
-
-function escapeHTML(str) {
-    if (!str) return "";
-    return str.toString().replace(/[&<>'"]/g, 
-        tag => ({
-            '&': '&amp;',
-            '<': '&lt;',
-            '>': '&gt;',
-            "'": '&#39;',
-            '"': '&quot;'
-        }[tag] || tag)
-    );
 }
 </script>
 {% endblock %}

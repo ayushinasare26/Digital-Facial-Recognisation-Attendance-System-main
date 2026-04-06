@@ -19,15 +19,15 @@
                 <span class="fw-bold text-muted pb-1">Present</span>
             </div>
             <div class="d-flex justify-content-between text-center mt-3">
-                <div>
+                <div style="cursor: pointer;" onclick="window.location.href='/students?filter=present'">
                     <div class="fw-bold fs-5" style="color: #10b981;">{{ present_today }}</div>
                     <div class="stat-label" style="font-size:0.75rem;">Present</div>
                 </div>
-                <div>
+                <div style="cursor: pointer;" onclick="window.location.href='/students?filter=absent'">
                     <div class="fw-bold fs-5" style="color: #ef4444;">{{ total_students - present_today }}</div>
                     <div class="stat-label" style="font-size:0.75rem;">Absent</div>
                 </div>
-                <div>
+                <div style="cursor: pointer;" onclick="window.location.href='/students?filter=all'">
                     <div class="fw-bold fs-5" style="color: #64748b;">{{ total_students }}</div>
                     <div class="stat-label" style="font-size:0.75rem;">Total Students</div>
                 </div>

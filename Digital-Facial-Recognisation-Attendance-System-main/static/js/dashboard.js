@@ -8,7 +8,10 @@ document.addEventListener("DOMContentLoaded", () => {
     try {
       const res = await fetch("/train_status");
       const data = await res.json();
-      trainProgress.style.width = data.progress + "%";
+      const progressLine = document.getElementById("trainProgressLine");
+      if (progressLine) {
+        progressLine.style.width = data.progress + "%";
+      }
       trainProgress.innerText = data.progress + "%";
       trainMsg.innerText = data.message || "";
       return data;
