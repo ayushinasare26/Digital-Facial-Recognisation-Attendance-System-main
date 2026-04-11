@@ -10,12 +10,13 @@
 <div class="row g-4">
     <!-- Left Column (Stats & Status) -->
     <div class="col-lg-3 d-flex flex-column gap-4">
-        
+
         <!-- Today's Attendance -->
         <div class="glass-card">
             <div class="card-title">Today's Attendance</div>
             <div class="d-flex align-items-end gap-2 mb-3">
-                <span class="stat-mega">{% if total_students > 0 %}{{ (present_today / total_students * 100)|round|int }}{% else %}0{% endif %}%</span>
+                <span class="stat-mega">{% if total_students > 0 %}{{ (present_today / total_students * 100)|round|int
+                    }}{% else %}0{% endif %}%</span>
                 <span class="fw-bold text-muted pb-1">Present</span>
             </div>
             <div class="d-flex justify-content-between text-center mt-3">
@@ -48,7 +49,8 @@
                 <div class="progress" style="height: 6px;">
                     <div id="trainProgressLine" class="progress-bar bg-success" style="width:100%"></div>
                 </div>
-                <div id="trainMsg" class="mt-2 text-muted small" style="font-size: 0.8rem;">Model trained. Ready for check-ins.</div>
+                <div id="trainMsg" class="mt-2 text-muted small" style="font-size: 0.8rem;">Model trained. Ready for
+                    check-ins.</div>
             </div>
         </div>
 
@@ -58,12 +60,13 @@
 
     <!-- Center Column (Chart & Overviews) -->
     <div class="col-lg-6 d-flex flex-column gap-4">
-        
+
         <!-- Attendance Overview Chart -->
         <div class="glass-card">
             <div class="d-flex justify-content-between align-items-center mb-3">
                 <div class="card-title mb-0">Attendance Overview</div>
-                <select id="chartViewFilter" class="form-select form-select-sm w-auto rounded-pill border-0 bg-light fw-bold text-dark cursor-pointer">
+                <select id="chartViewFilter"
+                    class="form-select form-select-sm w-auto rounded-pill border-0 bg-light fw-bold text-dark cursor-pointer">
                     <option value="present">Present</option>
                     <option value="absent">Absent</option>
                 </select>
@@ -78,20 +81,21 @@
             <div class="card-title mb-4" id="recentLogsTitle">Recent Check-ins</div>
             <div class="d-flex flex-column gap-3" id="recentLogsContainer">
                 {% if recent_logs %}
-                    {% for log in recent_logs %}
-                    <div class="d-flex align-items-center justify-content-between pb-3 border-bottom">
-                        <div class="d-flex align-items-center gap-3">
-                            <span class="text-muted fw-bold small">{{ loop.index }}.</span>
-                            <img src="{{ url_for('student_image', sid=log[1]) }}" 
-                                 onerror="this.src='https://ui-avatars.com/api/?name={{ log[2]|urlencode }}&background=f1f5f9';" 
-                                 class="student-thumb rounded-circle shadow-sm" style="width: 40px; height: 40px; object-fit: cover;">
-                            <span class="fw-bold">{{ log[2] }}</span>
-                        </div>
-                        <span class="text-muted small">{{ log[3] }}</span>
+                {% for log in recent_logs %}
+                <div class="d-flex align-items-center justify-content-between pb-3 border-bottom">
+                    <div class="d-flex align-items-center gap-3">
+                        <span class="text-muted fw-bold small">{{ loop.index }}.</span>
+                        <img src="{{ url_for('student_image', sid=log[1]) }}"
+                            onerror="this.src='https://ui-avatars.com/api/?name={{ log[2]|urlencode }}&background=f1f5f9';"
+                            class="student-thumb rounded-circle shadow-sm"
+                            style="width: 40px; height: 40px; object-fit: cover;">
+                        <span class="fw-bold">{{ log[2] }}</span>
                     </div>
-                    {% endfor %}
+                    <span class="text-muted small">{{ log[3] }}</span>
+                </div>
+                {% endfor %}
                 {% else %}
-                    <div class="text-center text-muted py-4">No recent scans today</div>
+                <div class="text-center text-muted py-4">No recent scans today</div>
                 {% endif %}
             </div>
         </div>
@@ -100,20 +104,23 @@
 
     <!-- Right Column (Calendar & Actions) -->
     <div class="col-lg-3 d-flex flex-column gap-4">
-        
+
         <!-- Calendar Widget -->
         <div class="glass-card">
             <div class="d-flex justify-content-between align-items-center mb-3">
-                 <div class="card-title mb-0" id="calendarTitle" style="min-width: 120px; text-align: left;">Calendar</div>
-                 <div>
+                <div class="card-title mb-0" id="calendarTitle" style="min-width: 120px; text-align: left;">Calendar
+                </div>
+                <div>
                     <i class="bi bi-chevron-left text-muted me-2" id="prevMonthBtn" style="cursor:pointer;"></i>
                     <i class="bi bi-chevron-right text-muted" id="nextMonthBtn" style="cursor:pointer;"></i>
-                 </div>
+                </div>
             </div>
             <div class="text-center">
                 <!-- Mock calendar structure matching image -->
                 <div class="d-flex justify-content-between text-muted small fw-bold mb-2 w-100">
-                    <span style="width:14%">Su</span><span style="width:14%">Mo</span><span style="width:14%">Tu</span><span style="width:14%">We</span><span style="width:14%">Th</span><span style="width:14%">Fr</span><span style="width:14%">Sa</span>
+                    <span style="width:14%">Su</span><span style="width:14%">Mo</span><span
+                        style="width:14%">Tu</span><span style="width:14%">We</span><span
+                        style="width:14%">Th</span><span style="width:14%">Fr</span><span style="width:14%">Sa</span>
                 </div>
                 <div id="calendarGrid" class="d-flex flex-wrap text-center w-100">
                     <!-- Javascript will render the calendar here -->
@@ -124,12 +131,18 @@
 
         <!-- Quick Actions -->
         <div class="glass-card flex-grow-1">
-             <div class="card-title">Quick Actions</div>
-             <div class="d-grid gap-3 mt-4">
-                 <a href="/add_student" class="btn btn-grad btn-grad-cyan d-flex align-items-center justify-content-center border-0 shadow-sm" style="height:48px;">Add Student</a>
-                 <a href="/download_csv" class="btn btn-grad btn-grad-purple d-flex align-items-center justify-content-center border-0 shadow-sm" style="height:48px;">Export Report</a>
-                 <a href="/attendance_record" class="btn btn-grad btn-grad-orange d-flex align-items-center justify-content-center border-0 shadow-sm" style="height:48px;">Review Records</a>
-             </div>
+            <div class="card-title">Quick Actions</div>
+            <div class="d-grid gap-3 mt-4">
+                <a href="/add_student"
+                    class="btn btn-grad btn-grad-cyan d-flex align-items-center justify-content-center border-0 shadow-sm"
+                    style="height:48px;">Add Student</a>
+                <a href="/download_csv"
+                    class="btn btn-grad btn-grad-purple d-flex align-items-center justify-content-center border-0 shadow-sm"
+                    style="height:48px;">Export Report</a>
+                <a href="/attendance_record"
+                    class="btn btn-grad btn-grad-orange d-flex align-items-center justify-content-center border-0 shadow-sm"
+                    style="height:48px;">Review Records</a>
+            </div>
         </div>
     </div>
 </div>
