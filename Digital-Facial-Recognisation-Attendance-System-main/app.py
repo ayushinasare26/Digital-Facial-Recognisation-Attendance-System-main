@@ -339,21 +339,21 @@ def attendance_record():
     period = request.args.get("period", "all")  # all, daily, weekly, monthly
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
-    q = "SELECT id, student_id, name, timestamp FROM attendance"
+    q = "SELECT a.id, a.student_id, s.roll, a.name, a.timestamp FROM attendance a LEFT JOIN students s ON a.student_id = s.id"
     params = ()
     if period == "daily":
         today = datetime.date.today().isoformat()
-        q += " WHERE date(timestamp) = ?"
+        q += " WHERE date(a.timestamp) = ?"
         params = (today,)
     elif period == "weekly":
         start = (datetime.date.today() - datetime.timedelta(days=7)).isoformat()
-        q += " WHERE date(timestamp) >= ?"
+        q += " WHERE date(a.timestamp) >= ?"
         params = (start,)
     elif period == "monthly":
         start = (datetime.date.today() - datetime.timedelta(days=30)).isoformat()
-        q += " WHERE date(timestamp) >= ?"
+        q += " WHERE date(a.timestamp) >= ?"
         params = (start,)
-    q += " ORDER BY timestamp DESC LIMIT 5000"
+    q += " ORDER BY a.timestamp DESC LIMIT 5000"
     c.execute(q, params)
     rows = c.fetchall()
     conn.close()

@@ -27,25 +27,24 @@
   <div class="table-responsive">
     <table class="table table-hover align-middle border">
       <thead class="table-light">
-        <tr><th class="ps-3">Log ID</th><th>Student ID</th><th>Name / Profile</th><th>Timestamp (UTC)</th></tr>
+        <tr><th class="ps-3">Student ID</th><th>Name / Profile</th><th>Timestamp (UTC)</th></tr>
       </thead>
       <tbody>
       {% for r in records %}
         <tr>
-          <td class="text-muted ps-3">#{{ r[0] }}</td>
-          <td class="fw-bold text-muted">{{ r[1] }}</td>
+          <td class="fw-bold text-muted ps-3">{{ r[2] if r[2] else r[1] }}</td>
           <td>
             <div class="d-flex align-items-center gap-3">
               <img
                 src="{{ url_for('student_image', sid=r[1]) }}"
                 class="student-thumb"
                 alt="Photo"
-                onerror="this.src='https://ui-avatars.com/api/?name={{ r[2]|urlencode }}&background=f1f5f9';"
+                onerror="this.src='https://ui-avatars.com/api/?name={{ r[3]|urlencode }}&background=f1f5f9';"
               />
-              <a href="#" class="view-student fw-bold text-dark text-decoration-none" data-id="{{ r[1] }}">{{ r[2] }}</a>
+              <a href="#" class="view-student fw-bold text-dark text-decoration-none" data-id="{{ r[1] }}">{{ r[3] }}</a>
             </div>
           </td>
-          <td><span class="badge bg-light text-dark border p-2">{{ r[3] }}</span></td>
+          <td><span class="badge bg-light text-dark border p-2">{{ r[4] }}</span></td>
         </tr>
       {% endfor %}
       </tbody>
@@ -77,8 +76,8 @@
     let rows = document.querySelectorAll('.table tbody tr');
     
     rows.forEach(row => {
-      let idCell = row.cells[1].textContent.toLowerCase();
-      let nameCell = row.cells[2].textContent.toLowerCase();
+      let idCell = row.cells[0].textContent.toLowerCase();
+      let nameCell = row.cells[1].textContent.toLowerCase();
       if (idCell.indexOf(filter) > -1 || nameCell.indexOf(filter) > -1) {
         row.style.display = '';
       } else {

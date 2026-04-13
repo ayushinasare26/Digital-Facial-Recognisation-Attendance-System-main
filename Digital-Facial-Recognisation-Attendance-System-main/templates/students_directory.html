@@ -27,7 +27,7 @@
         {% if students %}
           {% for s in students %}
           <tr>
-            <td class="text-muted ps-3">#{{ s[0] }}</td>
+            <td class="text-muted ps-3">#{{ s[2] if s[2] else s[0] }}</td>
             <td class="fw-bold align-middle text-dark">
                 <img src="{{ url_for('student_image', sid=s[0]) }}" class="student-thumb me-3 shadow-sm" alt="Profile" onerror="this.src='https://ui-avatars.com/api/?name={{ s[1]|urlencode }}&background=f1f5f9';">
                 {{ s[1] }}
