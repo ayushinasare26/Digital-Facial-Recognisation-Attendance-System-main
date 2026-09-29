@@ -1,0 +1,144 @@
+{% extends "base.html" %}
+{% block title %}Reports | FaceCheck{% endblock %}
+{% block content %}
+<div class="glass-card shadow-sm pt-4">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h4 class="mb-0 card-title fs-4">Attendance Reports</h4>
+    <div class="d-flex gap-2">
+      <a class="btn btn-outline-primary fw-bold" href="/download_csv"><i class="bi bi-download me-1"></i> Export CSV</a>
+    </div>
+  </div>
+
+  <div class="d-flex justify-content-between mb-4 align-items-center bg-light p-3 rounded-pill">
+    <div class="d-flex gap-1">
+      <a href="/attendance_record?period=all" class="btn btn-sm {% if period == 'all' %}btn-primary text-white{% else %}btn-light text-muted{% endif %} rounded-pill px-3 fw-bold">All</a>
+      <a href="/attendance_record?period=daily" class="btn btn-sm {% if period == 'daily' %}btn-primary text-white{% else %}btn-light text-muted{% endif %} rounded-pill px-3 fw-bold">Daily</a>
+      <a href="/attendance_record?period=weekly" class="btn btn-sm {% if period == 'weekly' %}btn-primary text-white{% else %}btn-light text-muted{% endif %} rounded-pill px-3 fw-bold">Weekly</a>
+      <a href="/attendance_record?period=monthly" class="btn btn-sm {% if period == 'monthly' %}btn-primary text-white{% else %}btn-light text-muted{% endif %} rounded-pill px-3 fw-bold">Monthly</a>
+    </div>
+    <div>
+      <div class="position-relative">
+          <i class="bi bi-search position-absolute top-50 start-0 translate-middle-y ms-3 text-muted"></i>
+          <input type="text" id="searchInput" class="form-control form-control-sm border-0 shadow-sm rounded-pill ps-5 py-2" placeholder="Search logs..." style="width:250px;">
+      </div>
+    </div>
+  </div>
+
+  <div class="table-responsive">
+    <table class="table table-hover align-middle border">
+      <thead class="table-light">
+        <tr><th class="ps-3">Student ID</th><th>Name / Profile</th><th>Timestamp (UTC)</th></tr>
+      </thead>
+      <tbody>
+      {% for r in records %}
+        <tr>
+          <td class="fw-bold text-muted ps-3">{{ r[2] if r[2] else r[1] }}</td>
+          <td>
+            <div class="d-flex align-items-center gap-3">
+              <img
+                src="{{ url_for('student_image', sid=r[1]) }}"
+                class="student-thumb"
+                alt="Photo"
+                onerror="this.src='https://ui-avatars.com/api/?name={{ r[3]|urlencode }}&background=f1f5f9';"
+              />
+              <a href="#" class="view-student fw-bold text-dark text-decoration-none" data-id="{{ r[1] }}">{{ r[3] }}</a>
+            </div>
+          </td>
+          <td><span class="badge bg-light text-dark border p-2">{{ r[4] }}</span></td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Student Detail Modal -->
+<div class="modal fade" id="studentModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content border-0 shadow-lg" style="border-radius: 20px;">
+      <div class="modal-header border-0 pb-0">
+        <h5 class="modal-title fw-bold" id="studentModalLabel">Student Details</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body pt-2">
+        <div id="studentDetailContent" class="text-center p-4">Loading stats...</div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  // Search feature
+  document.getElementById('searchInput').addEventListener('keyup', function() {
+    let filter = this.value.toLowerCase();
+    let rows = document.querySelectorAll('.table tbody tr');
+    
+    rows.forEach(row => {
+      let idCell = row.cells[0].textContent.toLowerCase();
+      let nameCell = row.cells[1].textContent.toLowerCase();
+      if (idCell.indexOf(filter) > -1 || nameCell.indexOf(filter) > -1) {
+        row.style.display = '';
+      } else {
+        row.style.display = 'none';
+      }
+    });
+  });
+
+  // Fetch and show student details in Modal
+  const currentPeriod = "{{ period|default('all') }}";
+  document.querySelectorAll('.view-student').forEach(item => {
+    item.addEventListener('click', function(e) {
+      e.preventDefault();
+      let sid = this.getAttribute('data-id');
+      let modalContent = document.getElementById('studentDetailContent');
+      modalContent.innerHTML = '<div class="spinner-border text-primary"></div>';
+      
+      let studentModal = new bootstrap.Modal(document.getElementById('studentModal'));
+      studentModal.show();
+      
+      fetch('/student/' + sid + '?period=' + encodeURIComponent(currentPeriod))
+        .then(response => response.json())
+        .then(data => {
+          if(data.error) {
+            modalContent.innerHTML = '<div class="alert alert-danger">' + data.error + '</div>';
+          } else {
+            const rawPct = data.attendance_percent ?? 0;
+            const pct = Math.round(rawPct);
+            let pctColor = "text-success";
+            if (pct < 50) pctColor = "text-danger";
+            else if (pct < 75) pctColor = "text-warning";
+
+            modalContent.innerHTML = `
+              <img src="/student_image/${data.id}?t=${new Date().getTime()}" 
+                   style="width:120px;height:120px;object-fit:cover;border-radius:50%;border:4px solid #f8fafc;box-shadow:0 4px 10px rgba(0,0,0,0.1);" 
+                   onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(data.name)}&background=f1f5f9';" class="mb-3"/>
+              
+              <h4 class="mb-0 fw-bold">${data.name}</h4>
+              <p class="text-muted small mb-4">${data.class || 'No Dept'} | ID: ${data.id}</p>
+
+              <div class="row g-2 text-center">
+                  <div class="col-6">
+                      <div class="bg-light rounded p-3">
+                          <div class="fs-4 fw-bold text-primary">${data.sessions_attended ?? 0}</div>
+                          <div class="small fw-bold text-muted text-uppercase" style="font-size:0.7rem;">Sessions</div>
+                      </div>
+                  </div>
+                  <div class="col-6">
+                      <div class="bg-light rounded p-3">
+                          <div class="fs-4 fw-bold ${pctColor}">${pct}%</div>
+                          <div class="small fw-bold text-muted text-uppercase" style="font-size:0.7rem;">Attendance</div>
+                      </div>
+                  </div>
+              </div>
+            `;
+          }
+        })
+        .catch(err => {
+          modalContent.innerHTML = '<div class="alert alert-danger">Error fetching details.</div>';
+        });
+    });
+  });
+</script>
+{% endblock %}

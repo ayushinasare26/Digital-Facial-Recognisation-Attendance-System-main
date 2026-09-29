@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Check In | FaceCheck{% endblock %}
+{% block content %}
+<div class="row pt-2">
+  <div class="col-12">
+    <div class="glass-card shadow-sm">
+      <div class="d-flex justify-content-between align-items-center border-bottom pb-3 mb-4">
+        <h4 class="mb-0 card-title fs-4">Face Scanner Check-In (Live)</h4>
+        <div>
+          <button id="startMarkBtn" class="btn btn-primary px-4 fw-bold">Start Scanner</button>
+          <button id="stopMarkBtn" class="btn btn-danger px-4 fw-bold" disabled>Stop</button>
+        </div>
+      </div>
+
+      <div class="row g-4">
+        <div class="col-md-7 text-center">
+          <div class="bg-light d-inline-block rounded p-2 border" style="border-width: 3px !important; border-color: #e2e8f0 !important;">
+            <video id="markVideo" width="560" height="420" autoplay muted style="border-radius:10px;"></video>
+          </div>
+          <div id="markStatus" class="mt-3 text-muted fw-bold">Ready. Waiting to start...</div>
+        </div>
+        <div class="col-md-5">
+          <h6 class="text-uppercase text-muted fw-bold mb-3" style="letter-spacing: 1px;">Recent Check-Ins (Session)</h6>
+          <ul id="recognizedList" class="list-group list-group-flush bg-transparent"></ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/camera_mark.js') }}"></script>
+{% endblock %}
