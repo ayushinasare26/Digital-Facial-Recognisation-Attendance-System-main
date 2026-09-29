@@ -27,10 +27,20 @@ def local_time_filter(val):
     return format_local_timestamp(val)
 
 # Ensure database schema is migrated with WAL mode, roles, sites, shifts, and indices
-init_db()
+STARTUP_WARNING = None
+try:
+    init_db()
+except Exception as _e:
+    import traceback
+    STARTUP_WARNING = f"init_db warning: {traceback.format_exc()}"
 
 # Warm up biometric facial embeddings cache into memory
-load_embeddings_cache()
+try:
+    load_embeddings_cache()
+except Exception as _e:
+    import traceback
+    if not STARTUP_WARNING:
+        STARTUP_WARNING = f"embeddings warning: {traceback.format_exc()}"
 
 # Register Blueprints
 app.register_blueprint(employee_bp, url_prefix="/employee")
@@ -64,6 +74,21 @@ def root_login():
     """Default entry point routes to Employee Portal login."""
     from blueprints.employee.routes import login as employee_login
     return employee_login()
+
+@app.route("/api/health")
+def api_health():
+    """Healthcheck endpoint for deployment verification and runtime diagnostics."""
+    import sys
+    from core.face_engine import FACE_RECOGNITION_AVAILABLE
+    return {
+        "status": "healthy" if not STARTUP_WARNING else "degraded",
+        "python_version": sys.version,
+        "is_vercel": Config.IS_VERCEL,
+        "db_path": Config.DB_PATH,
+        "db_exists": os.path.exists(Config.DB_PATH),
+        "face_recognition_available": FACE_RECOGNITION_AVAILABLE,
+        "startup_warning": STARTUP_WARNING,
+    }
 
 # ==========================================
 # Protected Media Serving Routes (Compliance & Scoping)

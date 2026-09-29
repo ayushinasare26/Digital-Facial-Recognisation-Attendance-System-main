@@ -49,18 +49,35 @@ def format_local_timestamp(iso_val, include_year=True):
     except Exception:
         return str(iso_val)
 
+def is_dir_writable(path):
+    try:
+        testfile = os.path.join(path, ".writetest")
+        with open(testfile, "w") as f:
+            f.write("1")
+        os.remove(testfile)
+        return True
+    except Exception:
+        return False
+
 class Config:
     BASE_DIR = BASE_DIR
-    IS_VERCEL = bool(os.environ.get("VERCEL"))
+    IS_VERCEL = bool(
+        os.environ.get("VERCEL")
+        or os.environ.get("AWS_LAMBDA_FUNCTION_NAME")
+        or not is_dir_writable(str(BASE_DIR))
+    )
     
     if IS_VERCEL:
         tmp_db = "/tmp/attendance.db"
-        if not os.path.exists(tmp_db) and (BASE_DIR / "attendance.db").exists():
-            import shutil
-            try:
-                shutil.copyfile(str(BASE_DIR / "attendance.db"), tmp_db)
-            except Exception:
-                pass
+        if not os.path.exists(tmp_db):
+            for candidate in [BASE_DIR / "attendance.db", Path("/var/task/attendance.db")]:
+                if candidate.exists():
+                    import shutil
+                    try:
+                        shutil.copyfile(str(candidate), tmp_db)
+                        break
+                    except Exception:
+                        pass
         DB_PATH = os.environ.get("DATABASE_PATH") or tmp_db
         DATASET_DIR = "/tmp/dataset"
         EMBEDDINGS_DIR = "/tmp/embeddings"

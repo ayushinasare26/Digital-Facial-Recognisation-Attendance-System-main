@@ -4,7 +4,14 @@ import json
 import base64
 import numpy as np
 from PIL import Image
-import face_recognition
+try:
+    import face_recognition
+    FACE_RECOGNITION_AVAILABLE = True
+    FACE_ENGINE_ERROR = None
+except Exception as _fe_err:
+    face_recognition = None
+    FACE_RECOGNITION_AVAILABLE = False
+    FACE_ENGINE_ERROR = str(_fe_err)
 
 from config import Config
 from core.db import get_db_connection, get_setting
@@ -41,6 +48,9 @@ def detect_face_and_embedding(rgb_image, min_face_size=100):
     """
     if rgb_image is None or rgb_image.size == 0:
         return None, None, "Invalid image data provided"
+        
+    if not FACE_RECOGNITION_AVAILABLE or face_recognition is None:
+        return None, None, f"Biometric engine unavailable on this server: {FACE_ENGINE_ERROR}"
         
     face_locations = face_recognition.face_locations(rgb_image, model="hog")
     
@@ -104,6 +114,17 @@ def match_face_embedding(target_embedding, match_threshold=None, review_threshol
     Matches target embedding against all enrolled student embeddings using
     multi-template consensus and margin verification.
     """
+    if not FACE_RECOGNITION_AVAILABLE or face_recognition is None:
+        return {
+            "matched": False,
+            "student_id": None,
+            "name": None,
+            "confidence": 0.0,
+            "distance": 1.0,
+            "status": "failed",
+            "reason": f"Biometric engine unavailable: {FACE_ENGINE_ERROR}"
+        }
+        
     cache = load_embeddings_cache()
     if not cache:
         return {
