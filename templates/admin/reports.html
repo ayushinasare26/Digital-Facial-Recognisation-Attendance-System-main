@@ -1,0 +1,154 @@
+{% extends "admin/base_admin.html" %}
+{% block title %}Payroll-Ready Attendance Export | GeoFace Admin{% endblock %}
+{% block page_title %}Payroll Export & Hours Calculation{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
+    <div>
+        <h4 class="fw-bold mb-1 text-dark">Payroll-Ready Attendance Exports</h4>
+        <p class="text-muted small mb-0">Generate audited workforce reports with shift regular hours, overtime, late counts, and geofence integrity</p>
+    </div>
+</div>
+
+<div class="row g-4">
+    <!-- Filter Card -->
+    <div class="col-lg-5">
+        <div class="card border-0 shadow-sm rounded-4 p-4 bg-white">
+            <h6 class="fw-bold text-dark mb-3"><i class="bi bi-funnel text-primary me-2"></i>Payroll Export Parameters</h6>
+
+            <form method="GET" action="/admin/payroll-export/csv">
+                <div class="row g-2 mb-3">
+                    <div class="col-6">
+                        <label class="form-label small fw-semibold text-secondary">Pay Period From</label>
+                        <input type="date" name="from" class="form-control rounded-3" required>
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label small fw-semibold text-secondary">Pay Period To</label>
+                        <input type="date" name="to" class="form-control rounded-3" required>
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label small fw-semibold text-secondary">Filter by Work Site</label>
+                    <select name="site_id" class="form-select rounded-3">
+                        <option value="">All Company Work Sites</option>
+                        {% for s in sites %}
+                        <option value="{{ s.id }}">{{ s.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="mb-4">
+                    <label class="form-label small fw-semibold text-secondary">Filter by Department</label>
+                    <select name="department_id" class="form-select rounded-3">
+                        <option value="">All Departments</option>
+                        {% for d in departments %}
+                        <option value="{{ d.id }}">{{ d.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="d-grid gap-2">
+                    <button type="submit" class="btn btn-success rounded-pill py-2 fw-semibold shadow-sm" style="background:#059669; border-color:#059669;">
+                        <i class="bi bi-file-earmark-spreadsheet me-1"></i> Generate Payroll-Ready CSV
+                    </button>
+                    <button type="button" onclick="window.print()" class="btn btn-outline-secondary rounded-pill py-2 fw-semibold">
+                        <i class="bi bi-printer me-1"></i> Print Summary
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- CSV Format Documentation -->
+    <div class="col-lg-7">
+        <div class="card border-0 shadow-sm rounded-4 p-4 bg-white h-100">
+            <h6 class="fw-bold text-dark mb-3"><i class="bi bi-code-square text-primary me-2"></i>Payroll Export CSV Schema</h6>
+            <p class="small text-muted mb-3">
+                This schema aligns with industrial ERP and payroll integration standards (ADP, Workday, SAP, Zoho Payroll). Each row aggregates one employee's shift performance across the selected date range.
+            </p>
+
+            <div class="table-responsive">
+                <table class="table table-bordered table-sm small mb-0">
+                    <thead class="table-light text-secondary">
+                        <tr>
+                            <th>CSV Column Name</th>
+                            <th>Data Type</th>
+                            <th>Description</th>
+                            <th>Payroll Mapping</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><code>Employee ID</code></td>
+                            <td>Integer</td>
+                            <td>Database primary key</td>
+                            <td>Internal Foreign Key</td>
+                        </tr>
+                        <tr>
+                            <td><code>Employee Code</code></td>
+                            <td>String</td>
+                            <td>Workforce badge code (e.g. EMP-1042)</td>
+                            <td>Payroll Employee Number</td>
+                        </tr>
+                        <tr>
+                            <td><code>Full Name</code></td>
+                            <td>String</td>
+                            <td>Enrolled employee name</td>
+                            <td>Payee Name</td>
+                        </tr>
+                        <tr>
+                            <td><code>Department</code></td>
+                            <td>String</td>
+                            <td>Assigned organizational unit</td>
+                            <td>Cost Center / Department</td>
+                        </tr>
+                        <tr>
+                            <td><code>Site</code></td>
+                            <td>String</td>
+                            <td>Branch / Office work site</td>
+                            <td>Tax Jurisdiction / Location</td>
+                        </tr>
+                        <tr>
+                            <td><code>Regular Hours</code></td>
+                            <td>Float (2 dec)</td>
+                            <td>Net shift hours worked minus lunch break</td>
+                            <td>Standard Base Pay Hours</td>
+                        </tr>
+                        <tr>
+                            <td><code>Overtime Hours</code></td>
+                            <td>Float (2 dec)</td>
+                            <td>Hours logged past scheduled shift end</td>
+                            <td>1.5x / 2.0x OT Multiplier</td>
+                        </tr>
+                        <tr>
+                            <td><code>Total Hours</code></td>
+                            <td>Float (2 dec)</td>
+                            <td>Regular + Overtime gross work time</td>
+                            <td>Total Time Worked</td>
+                        </tr>
+                        <tr>
+                            <td><code>Late Days</code></td>
+                            <td>Integer</td>
+                            <td>Count of check-ins past grace period</td>
+                            <td>Punctuality Deduction Policy</td>
+                        </tr>
+                        <tr>
+                            <td><code>Flagged Events</code></td>
+                            <td>Integer</td>
+                            <td>Geofence violations or liveness flags</td>
+                            <td>HR Disciplinary / Audit Hold</td>
+                        </tr>
+                        <tr>
+                            <td><code>Total Work Days</code></td>
+                            <td>Integer</td>
+                            <td>Distinct active work days in period</td>
+                            <td>Attendance Bonus / Per Diem</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

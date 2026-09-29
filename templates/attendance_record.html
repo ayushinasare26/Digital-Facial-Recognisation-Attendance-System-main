@@ -1,0 +1,194 @@
+{% extends "base.html" %}
+{% block title %}Attendance Records & Geotags | GeoFace AI{% endblock %}
+
+{% block content %}
+<div class="container-fluid p-0">
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-3">
+        <div>
+            <h3 class="fw-bold text-dark mb-1">Attendance Verification Audit Log</h3>
+            <p class="text-muted small mb-0">Search, filter, and inspect geotagged proof-of-location attendance records.</p>
+        </div>
+        <div class="d-flex align-items-center gap-2">
+            <a href="/download_csv" class="btn btn-outline-primary btn-sm rounded-pill px-3 shadow-sm bg-white d-flex align-items-center gap-1">
+                <i class="bi bi-file-earmark-arrow-down"></i> Export CSV
+            </a>
+            <a href="/reports" class="btn btn-primary btn-sm rounded-pill px-3 shadow-sm d-flex align-items-center gap-1">
+                <i class="bi bi-file-earmark-bar-graph"></i> Advanced Reports
+            </a>
+        </div>
+    </div>
+
+    <!-- Filter & Search Card -->
+    <div class="glass-card mb-4 p-3">
+        <form method="GET" action="/attendance_record" class="row g-2 align-items-center">
+            <div class="col-md-3">
+                <div class="input-group input-group-sm">
+                    <span class="input-group-text bg-light border-end-0"><i class="bi bi-search text-muted"></i></span>
+                    <input type="text" name="search" class="form-control border-start-0" placeholder="Search name, roll, location..." value="{{ search_q }}">
+                </div>
+            </div>
+
+            <div class="col-md-2">
+                <select name="period" class="form-select form-select-sm" onchange="this.form.submit()">
+                    <option value="all" {% if period == 'all' %}selected{% endif %}>All Time</option>
+                    <option value="daily" {% if period == 'daily' %}selected{% endif %}>Today Only</option>
+                    <option value="weekly" {% if period == 'weekly' %}selected{% endif %}>Last 7 Days</option>
+                    <option value="monthly" {% if period == 'monthly' %}selected{% endif %}>Last 30 Days</option>
+                </select>
+            </div>
+
+            <div class="col-md-2">
+                <select name="status" class="form-select form-select-sm" onchange="this.form.submit()">
+                    <option value="all" {% if status_filter == 'all' %}selected{% endif %}>All Statuses</option>
+                    <option value="success" {% if status_filter == 'success' %}selected{% endif %}>Verified Only</option>
+                    <option value="flagged" {% if status_filter == 'flagged' %}selected{% endif %}>Flagged for Review</option>
+                </select>
+            </div>
+
+            <div class="col-md-3">
+                <select name="student_id" class="form-select form-select-sm" onchange="this.form.submit()">
+                    <option value="">All Students</option>
+                    {% for s in students_list %}
+                    <option value="{{ s.id }}" {% if request.args.get('student_id') == s.id|string %}selected{% endif %}>{{ s.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="col-md-2 d-flex gap-2">
+                <button type="submit" class="btn btn-sm btn-primary w-100 rounded-pill">Filter</button>
+                <a href="/attendance_record" class="btn btn-sm btn-light border rounded-pill" title="Reset Filters"><i class="bi bi-x-circle"></i></a>
+            </div>
+        </form>
+    </div>
+
+    <!-- Records Table -->
+    <div class="glass-card">
+        <div class="table-responsive">
+            <table class="modern-table">
+                <thead>
+                    <tr>
+                        <th>Proof Photo</th>
+                        <th>Student</th>
+                        <th>Roll / Class</th>
+                        <th>Timestamp</th>
+                        <th>Location & Geotag</th>
+                        <th>Match Confidence</th>
+                        <th>Audit Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for r in records %}
+                    <tr>
+                        <td>
+                            {% if r.photo_path %}
+                            <img src="/{{ r.photo_path }}" alt="Proof" class="rounded shadow-sm" style="width: 46px; height: 46px; object-fit: cover; cursor: pointer;" onclick="showProofModal('/{{ r.photo_path }}', '{{ r.name }}', '{{ r.address }}', '{{ r.time_display }}', '{{ r.confidence }}%')">
+                            {% else %}
+                            <div class="bg-light rounded d-flex align-items-center justify-content-center text-muted" style="width: 46px; height: 46px;">
+                                <i class="bi bi-image"></i>
+                            </div>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="fw-bold text-dark">{{ r.name }}</div>
+                            <div class="text-muted small">ID: #{{ r.student_id }}</div>
+                        </td>
+                        <td>
+                            <span class="badge bg-light text-secondary border">{{ r.roll }}</span>
+                            <div class="text-muted small">{{ r.class }}</div>
+                        </td>
+                        <td>
+                            <div class="small fw-semibold text-dark">{{ r.time_display }}</div>
+                        </td>
+                        <td style="max-width: 260px;">
+                            <div class="d-flex align-items-start gap-1">
+                                <i class="bi bi-geo-alt text-primary small mt-1"></i>
+                                <div class="text-truncate small" title="{{ r.address }}">{{ r.address }}</div>
+                            </div>
+                            {% if r.latitude and r.longitude %}
+                            <a href="https://www.openstreetmap.org/?mlat={{ r.latitude }}&mlon={{ r.longitude }}#map=16/{{ r.latitude }}/{{ r.longitude }}" target="_blank" class="text-decoration-none text-muted small">
+                                📍 {{ "%.4f"|format(r.latitude) }}, {{ "%.4f"|format(r.longitude) }} &bull; Open Map
+                            </a>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="fw-bold {% if r.confidence >= 80 %}text-success{% elif r.confidence >= 60 %}text-warning{% else %}text-danger{% endif %} small">
+                                {{ r.confidence }}%
+                            </div>
+                            <div class="progress mt-1" style="height: 4px; width: 60px;">
+                                <div class="progress-bar {% if r.confidence >= 80 %}bg-success{% elif r.confidence >= 60 %}bg-warning{% else %}bg-danger{% endif %}" style="width: {{ r.confidence }}%"></div>
+                            </div>
+                        </td>
+                        <td>
+                            {% if r.status == 'success' %}
+                            <span class="badge-verified"><i class="bi bi-check-circle-fill"></i> Verified</span>
+                            {% elif r.status == 'flagged' %}
+                            <span class="badge-flagged"><i class="bi bi-flag-fill"></i> Flagged</span>
+                            {% else %}
+                            <span class="badge-failed"><i class="bi bi-x-circle-fill"></i> Failed</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="d-flex align-items-center gap-1">
+                                {% if r.photo_path %}
+                                <button class="btn btn-sm btn-light border rounded-pill px-2 py-1 text-primary" onclick="showProofModal('/{{ r.photo_path }}', '{{ r.name }}', '{{ r.address }}', '{{ r.time_display }}', '{{ r.confidence }}%')" title="View Geotagged Photo">
+                                    <i class="bi bi-image"></i>
+                                </button>
+                                {% endif %}
+                                <a href="/api/attendance/{{ r.id }}" target="_blank" class="btn btn-sm btn-light border rounded-pill px-2 py-1 text-secondary" title="View JSON Pipeline Data">
+                                    <i class="bi bi-code-slash"></i>
+                                </a>
+                            </div>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="8" class="text-center py-5 text-muted">
+                            <i class="bi bi-inbox fs-2 d-block mb-2 text-secondary"></i>
+                            No attendance records matched the filter criteria.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Modal for Geotagged Proof Photo Inspection -->
+<div class="modal fade" id="proofModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content rounded-4 border-0 shadow">
+            <div class="modal-header border-bottom">
+                <h5 class="modal-title fw-bold" id="proofModalTitle">Geotagged Attendance Proof</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-0 text-center bg-dark rounded-bottom">
+                <img id="proofModalImage" src="" alt="Proof" class="img-fluid" style="max-height: 520px; object-fit: contain;">
+                <div class="p-3 bg-white text-start border-top">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <div class="fw-bold fs-6 text-dark" id="proofModalName">—</div>
+                        <div class="badge bg-primary-subtle text-primary" id="proofModalConfidence">—</div>
+                    </div>
+                    <div class="text-muted small mb-1" id="proofModalTime">—</div>
+                    <div class="text-secondary small" id="proofModalAddress">—</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function showProofModal(photoUrl, name, address, time, conf) {
+        document.getElementById("proofModalImage").src = photoUrl;
+        document.getElementById("proofModalName").innerText = name;
+        document.getElementById("proofModalAddress").innerText = "📍 " + address;
+        document.getElementById("proofModalTime").innerText = "📅 " + time;
+        document.getElementById("proofModalConfidence").innerText = "Confidence: " + conf;
+        const modal = new bootstrap.Modal(document.getElementById("proofModal"));
+        modal.show();
+    }
+</script>
+{% endblock %}

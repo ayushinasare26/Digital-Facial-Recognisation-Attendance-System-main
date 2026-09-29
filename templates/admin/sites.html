@@ -1,0 +1,156 @@
+{% extends "admin/base_admin.html" %}
+{% block title %}Site & Geofence Management | GeoFace Admin{% endblock %}
+{% block page_title %}Work Sites & Geofencing{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-3">
+    <div>
+        <h4 class="fw-bold text-dark mb-1">Office Locations & Geofence Boundaries</h4>
+        <p class="text-muted small mb-0">Define branches, offices, and remote staff policies with Haversine GPS radius enforcement</p>
+    </div>
+    <button class="btn btn-primary rounded-pill px-4 fw-semibold shadow-sm" data-bs-toggle="modal" data-bs-target="#addSiteModal">
+        <i class="bi bi-plus-lg me-1"></i> Add Work Site
+    </button>
+</div>
+
+<!-- Sites Table -->
+<div class="card border-0 shadow-sm rounded-4 overflow-hidden bg-white mb-4">
+    <div class="card-header bg-white border-0 py-3 px-4 d-flex justify-content-between align-items-center">
+        <h6 class="fw-bold mb-0 text-dark"><i class="bi bi-geo-alt-fill text-primary me-2"></i>Configured Office Locations</h6>
+        <span class="badge bg-light text-secondary border">{{ sites|length }} sites</span>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0" style="font-size: 0.88rem;">
+            <thead class="table-light text-secondary">
+                <tr>
+                    <th class="ps-4">Site Name</th>
+                    <th>Resolved Address</th>
+                    <th>GPS Coordinates</th>
+                    <th>Geofence Radius</th>
+                    <th>Geofence Policy</th>
+                    <th>Assigned Staff</th>
+                    <th class="text-end pe-4">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% if sites %}
+                    {% for s in sites %}
+                    <tr>
+                        <td class="ps-4 fw-bold text-dark">{{ s.name }}</td>
+                        <td class="text-secondary small" style="max-width: 250px;">{{ s.address or 'Address pending' }}</td>
+                        <td>
+                            <code class="text-dark bg-light px-2 py-1 rounded small">
+                                {{ s.latitude|round(4) }}°, {{ s.longitude|round(4) }}°
+                            </code>
+                        </td>
+                        <td>
+                            {% if s.geofencing_enabled %}
+                            <span class="fw-semibold text-dark">{{ s.geofence_radius_meters|int }} meters</span>
+                            {% else %}
+                            <span class="text-muted">—</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if s.geofencing_enabled %}
+                            <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill px-2 py-1">
+                                <i class="bi bi-shield-check me-1"></i>Geofence Enforced
+                            </span>
+                            {% else %}
+                            <span class="badge bg-info-subtle text-info border border-info-subtle rounded-pill px-2 py-1">
+                                <i class="bi bi-globe me-1"></i>Remote / Field Staff (No Radius)
+                            </span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <span class="badge bg-light text-dark border px-2 py-1">{{ s.employee_count or 0 }} staff</span>
+                        </td>
+                        <td class="text-end pe-4">
+                            <form method="POST" action="/admin/sites/{{ s.id }}/delete" class="d-inline" onsubmit="return confirm('Remove this work site?');">
+                                <button type="submit" class="btn btn-sm btn-outline-danger rounded-pill px-3" {% if s.id == 1 %}disabled title="Primary site cannot be deleted"{% endif %}>
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr>
+                        <td colspan="7" class="text-center py-4 text-muted">No sites registered yet.</td>
+                    </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Modal: Add New Work Site -->
+<div class="modal fade" id="addSiteModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg rounded-4">
+            <form method="POST" action="/admin/sites">
+                <div class="modal-header border-0 pb-0">
+                    <h5 class="modal-title fw-bold text-dark">Register Work Site / Office Location</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold text-secondary">Site Name</label>
+                        <input type="text" name="name" class="form-control rounded-3" placeholder="e.g. Pune Development Centre" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold text-secondary">Address / Landmark</label>
+                        <input type="text" name="address" class="form-control rounded-3" placeholder="e.g. Hinjewadi Phase 2, Pune, Maharashtra" required>
+                    </div>
+                    <div class="row g-2 mb-3">
+                        <div class="col-6">
+                            <label class="form-label small fw-semibold text-secondary">Latitude</label>
+                            <input type="number" step="any" name="latitude" id="siteLatInput" class="form-control rounded-3" placeholder="e.g. 18.5913" required>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label small fw-semibold text-secondary">Longitude</label>
+                            <input type="number" step="any" name="longitude" id="siteLonInput" class="form-control rounded-3" placeholder="e.g. 73.7389" required>
+                        </div>
+                    </div>
+                    <button type="button" class="btn btn-sm btn-outline-secondary rounded-pill mb-3" onclick="useCurrentLocation();">
+                        <i class="bi bi-crosshair me-1"></i> Use My Current Browser Location
+                    </button>
+                    <div class="mb-3">
+                        <label class="form-label small fw-semibold text-secondary">Geofence Radius (Meters)</label>
+                        <input type="number" name="geofence_radius_meters" class="form-control rounded-3" value="200" required>
+                        <div class="text-muted" style="font-size: 0.72rem;">Check-ins outside this radius will be marked as geofence violations and flagged for audit.</div>
+                    </div>
+                    <div class="form-check form-switch p-3 bg-light rounded-3 border">
+                        <input class="form-check-input ms-0 me-2" type="checkbox" name="geofencing_enabled" id="geoEnabledSwitch" value="1" checked>
+                        <label class="form-check-label small fw-bold text-dark" for="geoEnabledSwitch">
+                            Enforce Geofence Validation
+                        </label>
+                        <div class="text-muted small">Disable this for remote staff, traveling sales representatives, or delivery site staff who report from variable coordinates.</div>
+                    </div>
+                </div>
+                <div class="modal-footer border-0 pt-0">
+                    <button type="button" class="btn btn-outline-secondary rounded-pill px-3" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary rounded-pill px-4 fw-semibold">
+                        Save Work Site
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function useCurrentLocation() {
+    if ("geolocation" in navigator) {
+        navigator.geolocation.getCurrentPosition(
+            (pos) => {
+                document.getElementById('siteLatInput').value = pos.coords.latitude.toFixed(6);
+                document.getElementById('siteLonInput').value = pos.coords.longitude.toFixed(6);
+            },
+            (err) => alert("Could not fetch GPS: " + err.message)
+        );
+    }
+}
+</script>
+{% endblock %}

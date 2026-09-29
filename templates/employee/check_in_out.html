@@ -1,0 +1,441 @@
+{% extends "employee/base_employee.html" %}
+{% block title %}Check In / Check Out | GeoFace Enterprise{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-sm-4 py-3">
+    <!-- Top Status Banner -->
+    <div class="row justify-content-center mb-4">
+        <div class="col-lg-11">
+            <div class="card border-0 shadow-sm rounded-4 overflow-hidden" style="background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);">
+                <div class="card-body p-4 text-white">
+                    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
+                        <div class="d-flex align-items-center gap-3">
+                            <div class="rounded-circle p-3 text-white d-flex align-items-center justify-content-center shadow" style="background: {% if 'Checked in' in current_status %}#10b981{% elif 'Completed' in current_status %}#3b82f6{% else %}#64748b{% endif %}; width: 56px; height: 56px; font-size: 1.6rem;">
+                                <i class="bi {% if 'Checked in' in current_status %}bi-check-circle-fill{% elif 'Completed' in current_status %}bi-award-fill{% else %}bi-clock-history{% endif %}"></i>
+                            </div>
+                            <div>
+                                <span class="badge text-uppercase px-2 py-1 mb-1" style="background: rgba(255,255,255,0.15); font-size: 0.72rem; letter-spacing: 0.05em;">Current Workforce Status</span>
+                                <h4 class="fw-bold mb-0 text-white" id="currentStatusText">{{ current_status }}</h4>
+                                <div class="text-white-50 small mt-1">
+                                    <span><i class="bi bi-building me-1"></i>{{ site.name }}</span>
+                                    <span class="mx-2">•</span>
+                                    <span><i class="bi bi-clock me-1"></i>Shift: {{ shift.start_time }} - {{ shift.end_time }}</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Action Recommendation & Mode -->
+                        <div class="d-flex align-items-center gap-2">
+                            <div class="form-check form-switch bg-dark bg-opacity-50 px-3 py-2 rounded-pill border border-secondary border-opacity-25 d-flex align-items-center gap-2 text-white">
+                                <input class="form-check-input ms-0 me-2" type="checkbox" id="demoModeToggle">
+                                <label class="form-check-label small fw-semibold text-light mb-0" for="demoModeToggle">
+                                    <i class="bi bi-magic text-warning"></i> Demo Mode
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Scanner & Geofence Section -->
+    <div class="row justify-content-center g-4">
+        <!-- Live Camera & Scanner Column -->
+        <div class="col-lg-7">
+            <div class="card border-0 shadow-sm rounded-4 p-4 bg-white">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <div>
+                        <h6 class="fw-bold mb-0 text-dark">Live Facial Verification & GPS</h6>
+                        <span class="text-muted small" id="scannerStatusText">Position face within camera oval to record event.</span>
+                    </div>
+                    <div id="liveGpsBadge" class="badge bg-light text-muted border px-2 py-1 small">
+                        <i class="bi bi-geo-alt"></i> Acquiring GPS...
+                    </div>
+                </div>
+
+                <!-- Geofence Pre-Submission Warning Banner -->
+                <div id="geofenceWarningBanner" class="alert alert-warning border-0 rounded-3 shadow-sm py-2 px-3 small d-flex align-items-center gap-2 mb-3" style="display: none !important;">
+                    <i class="bi bi-exclamation-triangle-fill text-warning fs-5"></i>
+                    <div id="geofenceWarningText">
+                        Location Warning: You appear to be outside your registered work site geofence.
+                    </div>
+                </div>
+
+                <!-- Camera Container -->
+                <div class="camera-container mx-auto position-relative rounded-4 overflow-hidden shadow-sm" style="max-width: 520px; width: 100%; background: #0f172a;">
+                    <video id="markVideo" width="100%" height="auto" autoplay playsinline muted style="aspect-ratio: 4/3; object-fit: cover; display: block;"></video>
+                    <div class="face-guide-overlay" id="faceGuide"></div>
+
+                    <!-- Liveness Challenge Overlay -->
+                    <div id="challengeBanner" class="position-absolute bottom-0 start-0 end-0 p-3 text-white text-center" style="background: rgba(15, 23, 42, 0.88); backdrop-filter: blur(8px); display: none;">
+                        <div class="d-flex align-items-center justify-content-center gap-2 mb-1">
+                            <span class="spinner-grow spinner-grow-sm text-warning" role="status"></span>
+                            <span class="fw-bold" id="challengeTitle">Biometric Liveness Check</span>
+                        </div>
+                        <div class="small text-light" id="challengeInstruction">Look into camera and blink naturally...</div>
+                        <div class="progress mt-2 mx-auto" style="height: 4px; max-width: 200px;">
+                            <div class="progress-bar bg-warning" id="challengeProgress" style="width: 0%"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Interactive Action Toggle Controls -->
+                <div class="d-flex flex-wrap justify-content-center gap-3 mt-4">
+                    <button id="startCamBtn" class="btn btn-outline-secondary px-4 rounded-pill fw-semibold shadow-sm">
+                        <i class="bi bi-camera-video me-1"></i> Start Camera
+                    </button>
+
+                    <!-- Toggle Button between Check-In and Check-Out -->
+                    <button id="actionBtn" class="btn btn-lg px-4 rounded-pill fw-bold shadow" style="{% if next_action == 'check_out' %}background:#dc2626; border-color:#dc2626; color:white;{% else %}background:#059669; border-color:#059669; color:white;{% endif %}" disabled>
+                        <i class="bi {% if next_action == 'check_out' %}bi-box-arrow-right{% else %}bi-box-arrow-in-right{% endif %} me-2"></i>
+                        <span id="actionBtnText">{% if next_action == 'check_out' %}Check Out Now{% else %}Check In Now{% endif %}</span>
+                    </button>
+
+                    <button id="stopCamBtn" class="btn btn-outline-danger px-3 rounded-pill fw-semibold" disabled>
+                        <i class="bi bi-stop-circle me-1"></i> Stop
+                    </button>
+                </div>
+
+                <div class="mt-3 text-center">
+                    <span class="text-muted small">
+                        Event Mode: <span class="badge bg-secondary-subtle text-secondary" id="eventModeBadge">{{ next_action|replace('_', ' ')|title }}</span>
+                        • Site Radius: <strong>{{ site.geofence_radius_meters|int }}m</strong>
+                        {% if not site.geofencing_enabled %}<span class="badge bg-info-subtle text-info ms-1">No Geofence Required</span>{% endif %}
+                    </span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Site & Today's Events Timeline -->
+        <div class="col-lg-4">
+            <!-- Work Site & Shift Card -->
+            <div class="card border-0 shadow-sm rounded-4 p-4 bg-white mb-4">
+                <h6 class="fw-bold text-dark mb-3">
+                    <i class="bi bi-geo-alt-fill text-success me-2"></i>Registered Work Site
+                </h6>
+                <div class="p-3 bg-light rounded-3 mb-3 border">
+                    <div class="fw-bold text-dark small">{{ site.name }}</div>
+                    <div class="text-muted small">{{ site.address }}</div>
+                    <hr class="my-2">
+                    <div class="d-flex justify-content-between small">
+                        <span class="text-secondary">Geofence Policy:</span>
+                        <span class="fw-semibold {% if site.geofencing_enabled %}text-success{% else %}text-info{% endif %}">
+                            {% if site.geofencing_enabled %}{{ site.geofence_radius_meters|int }}m Fixed Radius{% else %}Field / Multi-Site (No Radius){% endif %}
+                        </span>
+                    </div>
+                </div>
+
+                <h6 class="fw-bold text-dark mb-2">
+                    <i class="bi bi-calendar-event-fill text-primary me-2"></i>Assigned Shift Schedule
+                </h6>
+                <div class="p-3 bg-light rounded-3 border small">
+                    <div class="d-flex justify-content-between mb-1">
+                        <span class="text-secondary">Shift Name:</span>
+                        <span class="fw-semibold">{{ shift.name }}</span>
+                    </div>
+                    <div class="d-flex justify-content-between mb-1">
+                        <span class="text-secondary">Work Hours:</span>
+                        <span class="fw-semibold text-primary">{{ shift.start_time }} to {{ shift.end_time }}</span>
+                    </div>
+                    <div class="d-flex justify-content-between">
+                        <span class="text-secondary">Punctuality Grace:</span>
+                        <span class="fw-semibold text-success">{{ shift.grace_period_minutes }} Minutes</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Today's Activity Log -->
+            <div class="card border-0 shadow-sm rounded-4 p-4 bg-white">
+                <h6 class="fw-bold text-dark mb-3">
+                    <i class="bi bi-clock-history text-secondary me-2"></i>Today's Activity
+                </h6>
+                {% if events_today %}
+                <div class="timeline">
+                    {% for ev in events_today %}
+                    <div class="d-flex align-items-start gap-3 mb-3 pb-3 border-bottom">
+                        <div class="badge rounded-circle p-2 {% if ev.event_type == 'check_in' %}bg-success{% else %}bg-primary{% endif %} text-white">
+                            <i class="bi {% if ev.event_type == 'check_in' %}bi-box-arrow-in-right{% else %}bi-box-arrow-right{% endif %}"></i>
+                        </div>
+                        <div class="flex-grow-1">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <span class="fw-bold small text-dark">{{ ev.event_type|replace('_', ' ')|title }}</span>
+                                <span class="badge {% if ev.status == 'on_time' %}bg-success-subtle text-success{% elif ev.status == 'late' %}bg-warning-subtle text-warning{% elif ev.status == 'flagged' %}bg-danger-subtle text-danger{% else %}bg-primary-subtle text-primary{% endif %}">
+                                    {{ ev.status|upper }}
+                                </span>
+                            </div>
+                            <div class="text-muted small">{{ ev.time_display }}</div>
+                            {% if ev.distance_from_site_meters is not none %}
+                            <div class="text-secondary small mt-1" style="font-size: 0.72rem;">
+                                <i class="bi bi-compass me-1"></i>{{ ev.distance_from_site_meters|int }}m from site
+                                {% if not ev.within_geofence %}<span class="text-danger fw-bold ms-1">(Outside Geofence)</span>{% endif %}
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="text-center py-4 text-muted small">
+                    <i class="bi bi-calendar-x fs-3 d-block mb-2 text-secondary"></i>
+                    No attendance events logged yet today. Click Check In when you arrive.
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Confirmation Screen Modal -->
+<div class="modal fade" id="confirmationModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg rounded-4 overflow-hidden">
+            <div class="modal-header border-0 pb-0 text-white" id="modalHeader" style="background: linear-gradient(135deg, #059669 0%, #10b981 100%);">
+                <div class="d-flex align-items-center gap-2">
+                    <i class="bi bi-check-circle-fill fs-4"></i>
+                    <h5 class="modal-title fw-bold" id="confirmModalTitle">Check-In Confirmed</h5>
+                </div>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4">
+                <div class="text-center mb-3">
+                    <img id="confirmPhoto" src="" alt="Proof" class="rounded-3 shadow-sm mb-2" style="max-height: 180px; width: auto; max-width: 100%; object-fit: cover; display: none;">
+                    <h5 class="fw-bold text-dark mb-1" id="confirmEmpName">{{ employee_name }}</h5>
+                    <span class="badge bg-success-subtle text-success px-3 py-1 rounded-pill" id="confirmStatusBadge">VERIFIED ON-TIME</span>
+                </div>
+
+                <div class="p-3 bg-light rounded-3 border small">
+                    <div class="d-flex justify-content-between mb-2">
+                        <span class="text-secondary"><i class="bi bi-clock me-1"></i>Timestamp:</span>
+                        <strong id="confirmTime">—</strong>
+                    </div>
+                    <div class="d-flex justify-content-between mb-2">
+                        <span class="text-secondary"><i class="bi bi-geo-alt me-1"></i>Location:</span>
+                        <span class="text-end fw-semibold text-truncate ms-2" style="max-width: 220px;" id="confirmAddress">—</span>
+                    </div>
+                    <div class="d-flex justify-content-between mb-2">
+                        <span class="text-secondary"><i class="bi bi-building me-1"></i>Work Site:</span>
+                        <strong id="confirmSite">{{ site.name }}</strong>
+                    </div>
+                    <div class="d-flex justify-content-between">
+                        <span class="text-secondary"><i class="bi bi-arrows-collapse me-1"></i>Distance from Site:</span>
+                        <strong id="confirmDistance">—</strong>
+                    </div>
+                </div>
+
+                <div id="confirmFlagNotice" class="alert alert-warning border-0 rounded-3 mt-3 py-2 px-3 small d-flex align-items-center gap-2" style="display: none;">
+                    <i class="bi bi-info-circle-fill text-warning"></i>
+                    <span id="confirmFlagReason">Event flagged for manager review.</span>
+                </div>
+            </div>
+            <div class="modal-footer border-0 pt-0">
+                <button type="button" class="btn btn-success w-100 rounded-pill py-2 fw-semibold" data-bs-dismiss="modal" onclick="window.location.reload();">
+                    Done & Refresh Status
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let currentStream = null;
+let currentAction = "{{ next_action }}"; // 'check_in' or 'check_out'
+let userCoords = { lat: null, lon: null };
+const siteCoords = {
+    lat: {{ site.latitude }},
+    lon: {{ site.longitude }},
+    radius: {{ site.geofence_radius_meters }},
+    enabled: {{ 'true' if site.geofencing_enabled else 'false' }}
+};
+
+// Haversine client-side distance calculator
+function calculateHaversine(lat1, lon1, lat2, lon2) {
+    if (!lat1 || !lon1 || !lat2 || !lon2) return null;
+    const R = 6371000;
+    const phi1 = lat1 * Math.PI / 180;
+    const phi2 = lat2 * Math.PI / 180;
+    const dPhi = (lat2 - lat1) * Math.PI / 180;
+    const dLambda = (lon2 - lon1) * Math.PI / 180;
+
+    const a = Math.sin(dPhi/2) * Math.sin(dPhi/2) +
+              Math.cos(phi1) * Math.cos(phi2) *
+              Math.sin(dLambda/2) * Math.sin(dLambda/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    return Math.round(R * c);
+}
+
+// Acquire browser GPS
+function acquireLocation() {
+    if ("geolocation" in navigator) {
+        navigator.geolocation.getCurrentPosition(
+            (pos) => {
+                userCoords.lat = pos.coords.latitude;
+                userCoords.lon = pos.coords.longitude;
+                const dist = calculateHaversine(userCoords.lat, userCoords.lon, siteCoords.lat, siteCoords.lon);
+                
+                const gpsBadge = document.getElementById("liveGpsBadge");
+                gpsBadge.className = "badge bg-success-subtle text-success border border-success-subtle px-2 py-1 small";
+                gpsBadge.innerHTML = `<i class="bi bi-geo-alt-fill"></i> GPS Ready (${dist !== null ? dist + 'm' : 'Acquired'})`;
+
+                // Pre-submission warning if outside geofence for geofenced sites
+                if (siteCoords.enabled && dist !== null && dist > siteCoords.radius) {
+                    const warnBanner = document.getElementById("geofenceWarningBanner");
+                    const warnText = document.getElementById("geofenceWarningText");
+                    warnBanner.style.setProperty("display", "flex", "important");
+                    warnText.innerHTML = `<strong>Location Warning:</strong> You appear to be <strong>${dist}m</strong> from your registered office (${siteCoords.radius}m allowed). This ${currentAction.replace('_', ' ')} will be flagged for administrative audit.`;
+                }
+            },
+            (err) => {
+                const gpsBadge = document.getElementById("liveGpsBadge");
+                gpsBadge.className = "badge bg-warning-subtle text-warning border border-warning-subtle px-2 py-1 small";
+                gpsBadge.innerHTML = `<i class="bi bi-exclamation-triangle"></i> GPS Denied/Offline`;
+                if (siteCoords.enabled) {
+                    const warnBanner = document.getElementById("geofenceWarningBanner");
+                    warnBanner.style.setProperty("display", "flex", "important");
+                    document.getElementById("geofenceWarningText").innerText = "GPS coordinates unavailable. Check-in outside geofence will be flagged for review.";
+                }
+            },
+            { enableHighAccuracy: true, timeout: 8000 }
+        );
+    }
+}
+acquireLocation();
+
+// Camera Handling
+const video = document.getElementById("markVideo");
+const startCamBtn = document.getElementById("startCamBtn");
+const stopCamBtn = document.getElementById("stopCamBtn");
+const actionBtn = document.getElementById("actionBtn");
+
+startCamBtn.addEventListener("click", async () => {
+    try {
+        currentStream = await navigator.mediaDevices.getUserMedia({
+            video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: "user" },
+            audio: false
+        });
+        video.srcObject = currentStream;
+        startCamBtn.disabled = true;
+        stopCamBtn.disabled = false;
+        actionBtn.disabled = false;
+        document.getElementById("scannerStatusText").innerText = "Camera active. Ready for biometric scan.";
+    } catch (e) {
+        alert("Camera access denied or unavailable: " + e.message);
+    }
+});
+
+stopCamBtn.addEventListener("click", () => {
+    if (currentStream) {
+        currentStream.getTracks().forEach(t => t.stop());
+        currentStream = null;
+    }
+    video.srcObject = null;
+    startCamBtn.disabled = false;
+    stopCamBtn.disabled = true;
+    actionBtn.disabled = true;
+    document.getElementById("scannerStatusText").innerText = "Camera stopped.";
+});
+
+// Capture and Submit
+actionBtn.addEventListener("click", async () => {
+    const isDemo = document.getElementById("demoModeToggle").checked;
+    actionBtn.disabled = true;
+    document.getElementById("actionBtnText").innerText = "Verifying...";
+
+    // Liveness Challenge prompt
+    const challengeBanner = document.getElementById("challengeBanner");
+    const progress = document.getElementById("challengeProgress");
+    challengeBanner.style.display = "block";
+
+    let livenessFrames = [];
+    const canvas = document.createElement("canvas");
+    canvas.width = video.videoWidth || 640;
+    canvas.height = video.videoHeight || 480;
+    const ctx = canvas.getContext("2d");
+
+    // Capture burst frames for liveness
+    for (let i = 1; i <= 3; i++) {
+        progress.style.width = (i * 33) + "%";
+        if (currentStream) {
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            livenessFrames.push(canvas.toDataURL("image/jpeg", 0.85));
+        }
+        await new Promise(r => setTimeout(r, 250));
+    }
+
+    let primaryPhoto = null;
+    if (currentStream) {
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        primaryPhoto = canvas.toDataURL("image/jpeg", 0.9);
+    }
+
+    challengeBanner.style.display = "none";
+
+    const endpoint = currentAction === "check_out" ? "/employee/check-out" : "/employee/check-in";
+
+    try {
+        const payload = {
+            image: primaryPhoto,
+            liveness_frames: livenessFrames,
+            latitude: userCoords.lat,
+            longitude: userCoords.lon,
+            event_type: currentAction,
+            is_demo: isDemo,
+            bypass_cooldown: isDemo
+        };
+
+        const res = await fetch(endpoint, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+        });
+
+        const data = await res.json();
+
+        if (data.success) {
+            // Show Confirmation Modal
+            const modalEl = document.getElementById("confirmationModal");
+            const modal = new bootstrap.Modal(modalEl);
+
+            const isOut = currentAction === "check_out";
+            document.getElementById("confirmModalTitle").innerText = isOut ? "Check-Out Confirmed" : "Check-In Confirmed";
+            document.getElementById("modalHeader").style.background = isOut ? "linear-gradient(135deg, #2563eb 0%, #3b82f6 100%)" : "linear-gradient(135deg, #059669 0%, #10b981 100%)";
+            document.getElementById("confirmTime").innerText = data.timestamp_display || new Date().toLocaleTimeString();
+            document.getElementById("confirmAddress").innerText = data.address || "Location Verified";
+            document.getElementById("confirmDistance").innerText = data.distance_from_site_meters !== null && data.distance_from_site_meters !== undefined ? `${Math.round(data.distance_from_site_meters)}m` : "On Site";
+
+            const badge = document.getElementById("confirmStatusBadge");
+            badge.innerText = data.status.toUpperCase();
+            if (data.status === "flagged") {
+                badge.className = "badge bg-danger-subtle text-danger px-3 py-1 rounded-pill";
+            } else if (data.status === "late") {
+                badge.className = "badge bg-warning-subtle text-warning px-3 py-1 rounded-pill";
+            } else {
+                badge.className = "badge bg-success-subtle text-success px-3 py-1 rounded-pill";
+            }
+
+            if (data.flagged) {
+                document.getElementById("confirmFlagNotice").style.display = "flex";
+                document.getElementById("confirmFlagReason").innerText = data.flag_reason || "Flagged for administrative review.";
+            }
+
+            if (data.photo_url) {
+                const photo = document.getElementById("confirmPhoto");
+                photo.src = data.photo_url;
+                photo.style.display = "inline-block";
+            }
+
+            modal.show();
+        } else {
+            alert("Verification Failed: " + (data.message || "Face or location check failed."));
+        }
+    } catch (err) {
+        alert("Network or verification error: " + err.message);
+    } finally {
+        actionBtn.disabled = false;
+        document.getElementById("actionBtnText").innerText = currentAction === "check_out" ? "Check Out Now" : "Check In Now";
+    }
+});
+</script>
+{% endblock %}

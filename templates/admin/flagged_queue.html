@@ -1,0 +1,164 @@
+{% extends "admin/base_admin.html" %}
+{% block title %}Flagged Review Queue | GeoFace Admin{% endblock %}
+{% block page_title %}Audit & Flagged Review Queue{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
+    <div>
+        <h4 class="fw-bold mb-1 text-dark">Audit & Review Queue</h4>
+        <p class="text-muted small mb-0">Events flagged due to geofence radius violations, missing coordinates, proxy warnings, or liveness failures</p>
+    </div>
+    <span class="badge bg-danger-subtle text-danger border border-danger-subtle px-3 py-2 fs-6 rounded-pill">
+        <i class="bi bi-shield-exclamation me-1"></i> {{ records|length }} Flagged Events
+    </span>
+</div>
+
+<!-- Flagged Records Card -->
+<div class="card border-0 shadow-sm rounded-4 bg-white overflow-hidden mb-4">
+    <div class="card-header bg-white border-0 py-3 px-4">
+        <h6 class="fw-bold mb-0 text-dark"><i class="bi bi-geo-fill text-danger me-2"></i>Flagged Attendance Events</h6>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0" style="font-size: 0.88rem;">
+            <thead class="table-light text-secondary">
+                <tr>
+                    <th class="ps-4">ID</th>
+                    <th>Employee</th>
+                    <th>Event</th>
+                    <th>Timestamp</th>
+                    <th>Site & Distance</th>
+                    <th>Anomaly Flag Reason</th>
+                    <th class="text-end pe-4">Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% if records %}
+                    {% for r in records %}
+                    <tr>
+                        <td class="ps-4 text-muted fw-semibold">#{{ r.id }}</td>
+                        <td>
+                            <div class="fw-bold text-dark">{{ r.name }}</div>
+                            <span class="text-muted" style="font-size: 0.75rem;">ID: {{ r.employee_code or '—' }} • {{ r.department_name or 'General' }}</span>
+                        </td>
+                        <td>
+                            <span class="badge bg-light text-dark border">{{ r.event_type|replace('_', ' ')|title }}</span>
+                        </td>
+                        <td>
+                            <span class="text-dark small">{{ r.time_display }}</span>
+                        </td>
+                        <td>
+                            <div>{{ r.site_name or 'Headquarters' }}</div>
+                            {% if r.distance_from_site_meters is not none %}
+                            <span class="text-danger small fw-semibold">
+                                <i class="bi bi-compass me-1"></i>{{ r.distance_from_site_meters|int }}m away
+                            </span>
+                            {% else %}
+                            <span class="text-muted small">No GPS</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <span class="text-danger small fw-semibold">
+                                <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                                {{ r.flag_reason or r.review_note or 'Geofence violation or missing coordinates' }}
+                            </span>
+                        </td>
+                        <td class="text-end pe-4">
+                            <button type="button" class="btn btn-sm btn-outline-primary rounded-pill px-3 py-1" data-bs-toggle="modal" data-bs-target="#reviewModal{{ r.id }}">
+                                <i class="bi bi-pencil-square me-1"></i> Review
+                            </button>
+
+                            <!-- Review Modal -->
+                            <div class="modal fade text-start" id="reviewModal{{ r.id }}" tabindex="-1">
+                                <div class="modal-dialog modal-dialog-centered">
+                                    <div class="modal-content rounded-4 border-0 shadow">
+                                        <div class="modal-header border-bottom">
+                                            <h6 class="modal-title fw-bold">Audit Flagged Record #{{ r.id }}</h6>
+                                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                        </div>
+                                        <form method="POST" action="/admin/flagged/{{ r.id }}/review">
+                                            <div class="modal-body p-4">
+                                                {% if r.geotagged_photo_path %}
+                                                <div class="text-center mb-3">
+                                                    <img src="/{{ r.geotagged_photo_path }}" alt="Proof" class="img-fluid rounded-3 border shadow-sm" style="max-height: 240px; width: 100%; object-fit: cover;">
+                                                </div>
+                                                {% endif %}
+                                                
+                                                <div class="alert alert-warning py-2 px-3 small rounded-3 mb-3">
+                                                    <strong>Anomaly Reason:</strong> {{ r.flag_reason or r.review_note or 'Flagged during automated geofence / biometric verification.' }}
+                                                </div>
+
+                                                <div class="mb-3">
+                                                    <label class="form-label small fw-semibold text-secondary">Review Decision</label>
+                                                    <select name="action" class="form-select form-select-sm rounded-3">
+                                                        <option value="approve">Approve (Override flag & mark attendance as Verified)</option>
+                                                        <option value="reject" selected>Reject (Confirm violation & leave Flagged)</option>
+                                                    </select>
+                                                </div>
+
+                                                <div class="mb-2">
+                                                    <label class="form-label small fw-semibold text-secondary">Audit Note</label>
+                                                    <textarea name="note" class="form-control form-control-sm rounded-3" rows="2" placeholder="e.g. Approved due to offsite emergency client dispatch..."></textarea>
+                                                </div>
+                                            </div>
+                                            <div class="modal-footer border-top py-2">
+                                                <button type="button" class="btn btn-sm btn-light border rounded-pill" data-bs-dismiss="modal">Cancel</button>
+                                                <button type="submit" class="btn btn-sm btn-primary rounded-pill px-3" style="background: var(--admin-primary);">
+                                                    Submit Decision
+                                                </button>
+                                            </div>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr>
+                        <td colspan="7" class="text-center py-4 text-muted">
+                            <i class="bi bi-shield-check text-success fs-3 d-block mb-1"></i>
+                            No flagged anomalies currently pending in the audit queue.
+                        </td>
+                    </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Pending Correction Requests Section -->
+{% if pending_corrections %}
+<div class="card border-0 shadow-sm rounded-4 bg-white overflow-hidden">
+    <div class="card-header bg-white border-0 py-3 px-4">
+        <h6 class="fw-bold mb-0 text-dark"><i class="bi bi-inbox-fill text-warning me-2"></i>Unresolved Correction Requests Across Company</h6>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0" style="font-size: 0.88rem;">
+            <thead class="table-light text-secondary">
+                <tr>
+                    <th class="ps-4">Employee</th>
+                    <th>Target Date</th>
+                    <th>Reason</th>
+                    <th>Requested Adjustment</th>
+                    <th>Submitted</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for cr in pending_corrections %}
+                <tr>
+                    <td class="ps-4">
+                        <div class="fw-bold">{{ cr.name }}</div>
+                        <div class="text-muted small">ID: {{ cr.employee_code }} • {{ cr.department_name }}</div>
+                    </td>
+                    <td>{{ cr.attendance_date }}</td>
+                    <td>{{ cr.reason }}</td>
+                    <td>{{ cr.requested_change }}</td>
+                    <td class="text-muted small">{{ cr.created_display }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

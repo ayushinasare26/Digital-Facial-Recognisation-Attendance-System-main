@@ -1,0 +1,150 @@
+{% extends "base.html" %}
+{% block title %}Pipeline Activity & Engine Status | GeoFace AI{% endblock %}
+
+{% block content %}
+<div class="container-fluid p-0">
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-3">
+        <div>
+            <h3 class="fw-bold text-dark mb-1">Recognition Pipeline Activity</h3>
+            <p class="text-muted small mb-0">Stage-by-stage audit trails of recent automated attendance runs.</p>
+        </div>
+        <div class="d-flex align-items-center gap-2">
+            <button class="btn btn-outline-secondary btn-sm rounded-pill px-3 shadow-sm bg-white" onclick="loadRecentPipelineRuns()">
+                <i class="bi bi-arrow-clockwise me-1"></i> Refresh Runs
+            </button>
+            <a href="/mark_attendance" class="btn btn-primary btn-sm rounded-pill px-3 shadow-sm">
+                <i class="bi bi-play-circle me-1"></i> Trigger New Run
+            </a>
+        </div>
+    </div>
+
+    <!-- Overview info banner -->
+    <div class="glass-card mb-4 p-3 border-start border-4 border-primary">
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
+            <div>
+                <h6 class="fw-bold mb-1">Automated 9-Stage Execution Pipeline</h6>
+                <div class="text-muted small">
+                    Every attendance event executes a sequential 9-phase verification workflow. Each stage status is recorded in <code class="text-primary">pipeline_logs</code> for audit compliance.
+                </div>
+            </div>
+            <div class="d-flex flex-wrap gap-2">
+                <span class="badge bg-success-subtle text-success border border-success-subtle px-2 py-1"><i class="bi bi-check-circle me-1"></i>Completed</span>
+                <span class="badge bg-warning-subtle text-warning border border-warning-subtle px-2 py-1"><i class="bi bi-arrow-repeat me-1"></i>Fallback</span>
+                <span class="badge bg-danger-subtle text-danger border border-danger-subtle px-2 py-1"><i class="bi bi-x-circle me-1"></i>Failed</span>
+                <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle px-2 py-1">Skipped</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Pipeline Runs Container -->
+    <div id="pipelineRunsList" class="d-flex flex-column gap-4">
+        <div class="text-center py-5 text-muted">
+            <div class="spinner-border text-primary" role="status"></div>
+            <div class="mt-2 small">Loading real-time pipeline audit logs...</div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    async function loadRecentPipelineRuns() {
+        const container = document.getElementById("pipelineRunsList");
+        container.innerHTML = `
+            <div class="text-center py-5 text-muted">
+                <div class="spinner-border text-primary" role="status"></div>
+                <div class="mt-2 small">Loading real-time pipeline audit logs...</div>
+            </div>`;
+
+        try {
+            const resp = await fetch("/api/pipeline/recent");
+            if (!resp.ok) throw new Error("Failed to load pipeline data");
+            const data = await resp.json();
+            const runs = data.runs || [];
+
+            if (runs.length === 0) {
+                container.innerHTML = `
+                    <div class="glass-card text-center py-5 text-muted">
+                        <i class="bi bi-cpu fs-1 d-block mb-2 text-secondary"></i>
+                        <h5>No Pipeline Runs Recorded Yet</h5>
+                        <p class="small">Mark attendance from the scanner page to see the automated pipeline stages execute live.</p>
+                        <a href="/mark_attendance" class="btn btn-sm btn-primary rounded-pill px-3">Mark Attendance</a>
+                    </div>`;
+                return;
+            }
+
+            let html = "";
+            runs.forEach((run, idx) => {
+                const statusBadge = run.attendance_status === "success" 
+                    ? `<span class="badge-verified"><i class="bi bi-check-circle-fill"></i> Verified Success</span>` 
+                    : (run.attendance_status === "flagged" 
+                        ? `<span class="badge-flagged"><i class="bi bi-flag-fill"></i> Flagged for Review</span>` 
+                        : `<span class="badge-failed"><i class="bi bi-x-circle-fill"></i> Pipeline Interrupted</span>`);
+
+                html += `
+                <div class="glass-card">
+                    <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 pb-2 border-bottom gap-2">
+                        <div class="d-flex align-items-center gap-2">
+                            <span class="badge bg-dark rounded-pill px-3 py-1 font-monospace" style="font-size: 0.78rem;">#${run.run_id}</span>
+                            <h6 class="fw-bold text-dark mb-0">${run.student_name}</h6>
+                        </div>
+                        <div class="d-flex align-items-center gap-2">
+                            <span class="text-muted small"><i class="bi bi-clock me-1"></i>${run.timestamp}</span>
+                            ${statusBadge}
+                        </div>
+                    </div>
+
+                    <div class="row g-2">
+                `;
+
+                run.stages.forEach((stage, sIdx) => {
+                    let badgeClass = "bg-secondary text-white";
+                    let icon = "bi-circle";
+                    
+                    if (stage.status === "Completed") {
+                        badgeClass = "bg-success text-white";
+                        icon = "bi-check-circle-fill";
+                    } else if (stage.status === "Failed") {
+                        badgeClass = "bg-danger text-white";
+                        icon = "bi-x-circle-fill";
+                    } else if (stage.status === "Fallback") {
+                        badgeClass = "bg-warning text-dark";
+                        icon = "bi-exclamation-triangle-fill";
+                    } else if (stage.status === "Skipped") {
+                        badgeClass = "bg-light text-muted border";
+                        icon = "bi-slash-circle";
+                    }
+
+                    html += `
+                        <div class="col-md-6 col-lg-4">
+                            <div class="p-2 border rounded-3 bg-light h-100 d-flex flex-column justify-content-between">
+                                <div class="d-flex align-items-center justify-content-between mb-1">
+                                    <span class="fw-bold text-dark" style="font-size: 0.82rem;">${sIdx+1}. ${stage.stage}</span>
+                                    <span class="badge ${badgeClass}" style="font-size: 0.7rem;"><i class="bi ${icon} me-1"></i>${stage.status}</span>
+                                </div>
+                                <div class="text-muted" style="font-size: 0.75rem; word-break: break-word;">${stage.message || "Stage processed successfully"}</div>
+                            </div>
+                        </div>
+                    `;
+                });
+
+                html += `
+                    </div>
+                </div>
+                `;
+            });
+
+            container.innerHTML = html;
+
+        } catch (err) {
+            container.innerHTML = `
+                <div class="alert alert-danger rounded-4">
+                    <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                    Failed to fetch pipeline records: ${err.message}
+                </div>`;
+        }
+    }
+
+    document.addEventListener("DOMContentLoaded", loadRecentPipelineRuns);
+</script>
+{% endblock %}

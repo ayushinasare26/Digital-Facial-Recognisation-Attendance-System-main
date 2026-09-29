@@ -1,0 +1,166 @@
+{% extends "admin/base_admin.html" %}
+{% block title %}Master Attendance Records | GeoFace Admin{% endblock %}
+{% block page_title %}Master Attendance Records{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
+    <div>
+        <h4 class="fw-bold mb-1 text-dark">Master Workforce Attendance Records</h4>
+        <p class="text-muted small mb-0">Company-wide audit trail of all check-in and check-out events, geofence validations, and punctuality flags</p>
+    </div>
+    <div class="d-flex gap-2">
+        <a href="/admin/payroll-export" class="btn btn-outline-success btn-sm rounded-pill px-3 fw-semibold">
+            <i class="bi bi-file-earmark-spreadsheet me-1"></i> Payroll Export
+        </a>
+    </div>
+</div>
+
+<!-- Filters Card -->
+<div class="card border-0 shadow-sm rounded-4 p-3 bg-white mb-4">
+    <form method="GET" action="/admin/attendance" class="row g-2 align-items-center">
+        <div class="col-md-3">
+            <div class="input-group input-group-sm">
+                <span class="input-group-text bg-light border-end-0"><i class="bi bi-search"></i></span>
+                <input type="text" name="search" class="form-control form-control-sm border-start-0" placeholder="Search employee, ID, location..." value="{{ search_q }}">
+            </div>
+        </div>
+
+        <div class="col-sm-6 col-md-2">
+            <select name="site_id" class="form-select form-select-sm rounded-3">
+                <option value="">All Sites</option>
+                {% for s in sites %}
+                <option value="{{ s.id }}" {% if selected_site|string == s.id|string %}selected{% endif %}>{{ s.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="col-sm-6 col-md-2">
+            <select name="department_id" class="form-select form-select-sm rounded-3">
+                <option value="">All Departments</option>
+                {% for d in departments %}
+                <option value="{{ d.id }}" {% if selected_dept|string == d.id|string %}selected{% endif %}>{{ d.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="col-sm-6 col-md-2">
+            <select name="shift_id" class="form-select form-select-sm rounded-3">
+                <option value="">All Shifts</option>
+                {% for sh in shifts %}
+                <option value="{{ sh.id }}" {% if selected_shift|string == sh.id|string %}selected{% endif %}>{{ sh.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="col-sm-6 col-md-2">
+            <select name="status" class="form-select form-select-sm rounded-3">
+                <option value="all" {% if status_filter == 'all' %}selected{% endif %}>All Statuses</option>
+                <option value="on_time" {% if status_filter == 'on_time' %}selected{% endif %}>On-Time</option>
+                <option value="late" {% if status_filter == 'late' %}selected{% endif %}>Late</option>
+                <option value="overtime" {% if status_filter == 'overtime' %}selected{% endif %}>Overtime</option>
+                <option value="early_leave" {% if status_filter == 'early_leave' %}selected{% endif %}>Early Leave</option>
+                <option value="flagged" {% if status_filter == 'flagged' %}selected{% endif %}>Flagged for Audit</option>
+            </select>
+        </div>
+
+        <div class="col-md-1 d-flex gap-1">
+            <button type="submit" class="btn btn-primary btn-sm rounded-pill w-100 fw-semibold" style="background: var(--admin-primary); border-color: var(--admin-primary);">
+                Filter
+            </button>
+            <a href="/admin/attendance" class="btn btn-light btn-sm rounded-pill border" title="Reset Filters">
+                <i class="bi bi-arrow-counterclockwise"></i>
+            </a>
+        </div>
+    </form>
+</div>
+
+<!-- Records Table -->
+<div class="card border-0 shadow-sm rounded-4 bg-white overflow-hidden">
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0" style="font-size: 0.88rem;">
+            <thead class="table-light text-secondary">
+                <tr>
+                    <th class="ps-4">ID</th>
+                    <th>Employee</th>
+                    <th>Event</th>
+                    <th>Timestamp</th>
+                    <th>Work Site</th>
+                    <th>Geofence & Distance</th>
+                    <th>Punctuality</th>
+                    <th>Audit Status</th>
+                    <th class="text-end pe-4">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% if records %}
+                    {% for r in records %}
+                    <tr>
+                        <td class="ps-4 text-muted fw-semibold">#{{ r.id }}</td>
+                        <td>
+                            <div class="fw-bold text-dark">{{ r.name }}</div>
+                            <span class="text-muted" style="font-size: 0.75rem;">ID: {{ r.employee_code or '—' }} • {{ r.department_name or 'General' }}</span>
+                        </td>
+                        <td>
+                            <span class="badge {% if r.event_type == 'check_in' %}bg-success-subtle text-success border border-success-subtle{% else %}bg-primary-subtle text-primary border border-primary-subtle{% endif %}">
+                                {{ (r.event_type or 'check_in')|replace('_', ' ')|title }}
+                            </span>
+                        </td>
+                        <td>
+                            <span class="text-dark small">{{ r.time_display }}</span>
+                        </td>
+                        <td>{{ r.site_name or 'Headquarters' }}</td>
+                        <td>
+                            {% if r.distance_from_site_meters is not none %}
+                                <span>{{ r.distance_from_site_meters|int }}m</span>
+                                {% if r.within_geofence %}
+                                <span class="badge bg-success-subtle text-success ms-1">Within Radius</span>
+                                {% else %}
+                                <span class="badge bg-danger text-white ms-1">Outside Geofence</span>
+                                {% endif %}
+                            {% else %}
+                                <span class="text-muted small">No GPS</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if r.status == 'on_time' %}
+                            <span class="badge bg-success rounded-pill px-2 py-1">On-Time</span>
+                            {% elif r.status == 'late' %}
+                            <span class="badge bg-warning text-dark rounded-pill px-2 py-1">Late</span>
+                            {% elif r.status == 'early_leave' %}
+                            <span class="badge bg-warning text-dark rounded-pill px-2 py-1">Early Leave</span>
+                            {% elif r.status == 'overtime' %}
+                            <span class="badge bg-primary rounded-pill px-2 py-1">Overtime</span>
+                            {% elif r.status == 'flagged' %}
+                            <span class="badge bg-danger rounded-pill px-2 py-1">Flagged</span>
+                            {% else %}
+                            <span class="badge bg-secondary rounded-pill px-2 py-1">{{ r.status|upper }}</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if r.flagged %}
+                            <span class="text-danger small fw-semibold" title="{{ r.flag_reason }}">
+                                <i class="bi bi-flag-fill me-1"></i>Flagged
+                            </span>
+                            {% else %}
+                            <span class="text-success small"><i class="bi bi-check2-all me-1"></i>Verified</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-end pe-4">
+                            <a href="/admin/attendance/{{ r.id }}" class="btn btn-sm btn-outline-secondary rounded-pill px-3">
+                                Inspect
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr>
+                        <td colspan="9" class="text-center py-4 text-muted">
+                            No attendance records found matching the filter criteria.
+                        </td>
+                    </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

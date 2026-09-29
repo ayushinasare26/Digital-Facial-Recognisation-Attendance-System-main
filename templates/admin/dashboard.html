@@ -1,0 +1,270 @@
+{% extends "admin/base_admin.html" %}
+{% block title %}Executive Dashboard | GeoFace Enterprise{% endblock %}
+{% block page_title %}Executive Oversight Dashboard{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
+    <div>
+        <h4 class="fw-bold mb-1 text-dark">Executive Oversight Dashboard</h4>
+        <p class="text-muted small mb-0">Multi-site enterprise attendance, geofencing integrity, punctuality, and overtime analytics</p>
+    </div>
+    <div class="d-flex gap-2">
+        <a href="/admin/attendance" class="btn btn-outline-primary btn-sm rounded-pill px-3 fw-semibold">
+            <i class="bi bi-list-check me-1"></i> Master Records
+        </a>
+        <a href="/admin/payroll-export" class="btn btn-success btn-sm rounded-pill px-3 fw-semibold" style="background:#059669; border-color:#059669;">
+            <i class="bi bi-file-earmark-spreadsheet me-1"></i> Payroll Export
+        </a>
+    </div>
+</div>
+
+<!-- Key Performance Metric Cards -->
+<div class="row g-3 mb-4">
+    <div class="col-sm-6 col-xl-3">
+        <div class="card border-0 shadow-sm rounded-4 p-3 bg-white h-100">
+            <div class="d-flex align-items-center justify-content-between mb-2">
+                <span class="text-muted small fw-semibold">Total Workforce</span>
+                <div class="badge rounded-circle p-2 bg-primary-subtle text-primary">
+                    <i class="bi bi-people-fill fs-5"></i>
+                </div>
+            </div>
+            <h3 class="fw-bold text-dark mb-0">{{ total_employees }}</h3>
+            <span class="text-muted small">Across {{ total_sites }} active office sites</span>
+        </div>
+    </div>
+
+    <div class="col-sm-6 col-xl-3">
+        <div class="card border-0 shadow-sm rounded-4 p-3 bg-white h-100">
+            <div class="d-flex align-items-center justify-content-between mb-2">
+                <span class="text-muted small fw-semibold">Checked In Right Now</span>
+                <div class="badge rounded-circle p-2 bg-success-subtle text-success">
+                    <i class="bi bi-check2-circle fs-5"></i>
+                </div>
+            </div>
+            <h3 class="fw-bold text-dark mb-0">{{ present_today }}</h3>
+            <span class="text-success small fw-semibold">{{ attendance_rate }}% Attendance Rate Today</span>
+        </div>
+    </div>
+
+    <div class="col-sm-6 col-xl-3">
+        <div class="card border-0 shadow-sm rounded-4 p-3 bg-white h-100">
+            <div class="d-flex align-items-center justify-content-between mb-2">
+                <span class="text-muted small fw-semibold">Overtime Accrued</span>
+                <div class="badge rounded-circle p-2 bg-info-subtle text-info">
+                    <i class="bi bi-clock-history fs-5"></i>
+                </div>
+            </div>
+            <h3 class="fw-bold text-primary mb-0">{{ overtime_hours }} hrs</h3>
+            <span class="text-muted small">Company-wide this pay period</span>
+        </div>
+    </div>
+
+    <div class="col-sm-6 col-xl-3">
+        <div class="card border-0 shadow-sm rounded-4 p-3 bg-white h-100">
+            <div class="d-flex align-items-center justify-content-between mb-2">
+                <span class="text-muted small fw-semibold">Flagged / Anomalies</span>
+                <div class="badge rounded-circle p-2 bg-danger-subtle text-danger">
+                    <i class="bi bi-exclamation-triangle-fill fs-5"></i>
+                </div>
+            </div>
+            <h3 class="fw-bold text-danger mb-0">{{ flagged_count }}</h3>
+            <span class="text-danger small">Geofence violations or audit flags</span>
+        </div>
+    </div>
+</div>
+
+<!-- Visualizations Row -->
+<div class="row g-4 mb-4">
+    <!-- Chart 1: 14-Day Attendance & Punctuality Trend -->
+    <div class="col-lg-8">
+        <div class="card border-0 shadow-sm rounded-4 p-4 bg-white h-100">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <div>
+                    <h6 class="fw-bold text-dark mb-0">14-Day Attendance & Punctuality Trend</h6>
+                    <small class="text-muted">Daily distribution of on-time check-ins, late arrivals, and flagged events</small>
+                </div>
+                <span class="badge bg-light text-muted border px-2 py-1 small">
+                    <i class="bi bi-graph-up text-primary me-1"></i> Live Aggregate
+                </span>
+            </div>
+            <div style="position: relative; height: 260px; width: 100%;">
+                <canvas id="trendChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Chart 2: Punctuality Breakdown by Department -->
+    <div class="col-lg-4">
+        <div class="card border-0 shadow-sm rounded-4 p-4 bg-white h-100">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <div>
+                    <h6 class="fw-bold text-dark mb-0">Department Punctuality</h6>
+                    <small class="text-muted">On-Time vs Late breakdown</small>
+                </div>
+            </div>
+            <div style="position: relative; height: 260px; width: 100%;">
+                <canvas id="deptChart"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Recent Organization-Wide Activity Table -->
+<div class="card border-0 shadow-sm rounded-4 overflow-hidden bg-white">
+    <div class="card-header bg-white border-0 py-3 px-4 d-flex justify-content-between align-items-center">
+        <h6 class="fw-bold mb-0 text-dark">
+            <i class="bi bi-activity text-primary me-2"></i>Live Multi-Site Attendance Stream
+        </h6>
+        <a href="/admin/attendance" class="text-primary text-decoration-none small fw-semibold">View All Records &rarr;</a>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0" style="font-size: 0.88rem;">
+            <thead class="table-light text-secondary">
+                <tr>
+                    <th class="ps-4">Employee</th>
+                    <th>Event</th>
+                    <th>Timestamp</th>
+                    <th>Site Location</th>
+                    <th>Distance & Geofence</th>
+                    <th>Punctuality</th>
+                    <th class="text-end pe-4">Detail</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% if recent_logs %}
+                    {% for r in recent_logs %}
+                    <tr>
+                        <td class="ps-4">
+                            <div class="fw-bold text-dark">{{ r.name }}</div>
+                            <div class="text-muted small">ID: {{ r.code }} • {{ r.department }}</div>
+                        </td>
+                        <td>
+                            <span class="badge {% if r.event_type == 'check_in' %}bg-success-subtle text-success border border-success-subtle{% else %}bg-primary-subtle text-primary border border-primary-subtle{% endif %}">
+                                {{ r.event_type|replace('_', ' ')|title }}
+                            </span>
+                        </td>
+                        <td class="text-muted">{{ r.time_display }}</td>
+                        <td>{{ r.site }}</td>
+                        <td>
+                            {% if r.distance_meters is not none %}
+                                <span>{{ r.distance_meters|int }}m</span>
+                                {% if r.within_geofence %}
+                                <span class="badge bg-success-subtle text-success ms-1">Within Radius</span>
+                                {% else %}
+                                <span class="badge bg-danger text-white ms-1">Outside Geofence</span>
+                                {% endif %}
+                            {% else %}
+                                <span class="text-muted">No GPS</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if r.status == 'on_time' %}
+                            <span class="badge bg-success rounded-pill px-2 py-1">On-Time</span>
+                            {% elif r.status == 'late' %}
+                            <span class="badge bg-warning text-dark rounded-pill px-2 py-1">Late</span>
+                            {% elif r.status == 'overtime' %}
+                            <span class="badge bg-primary rounded-pill px-2 py-1">Overtime</span>
+                            {% elif r.status == 'flagged' %}
+                            <span class="badge bg-danger rounded-pill px-2 py-1">Flagged</span>
+                            {% else %}
+                            <span class="badge bg-secondary rounded-pill px-2 py-1">{{ r.status|upper }}</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-end pe-4">
+                            <a href="/admin/attendance/{{ r.id }}" class="btn btn-sm btn-outline-secondary rounded-pill px-3">
+                                Inspect
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr>
+                        <td colspan="7" class="text-center py-4 text-muted">No recent activity logs found.</td>
+                    </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+fetch('/admin/dashboard/summary')
+    .then(r => r.json())
+    .then(data => {
+        // 1. Trend Chart
+        const trendCtx = document.getElementById('trendChart').getContext('2d');
+        new Chart(trendCtx, {
+            type: 'line',
+            data: {
+                labels: data.trend.labels,
+                datasets: [
+                    {
+                        label: 'On-Time',
+                        data: data.trend.on_time,
+                        borderColor: '#10b981',
+                        backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                        fill: true,
+                        tension: 0.35
+                    },
+                    {
+                        label: 'Late',
+                        data: data.trend.late,
+                        borderColor: '#f59e0b',
+                        backgroundColor: 'rgba(245, 158, 11, 0.1)',
+                        fill: true,
+                        tension: 0.35
+                    },
+                    {
+                        label: 'Flagged',
+                        data: data.trend.flagged,
+                        borderColor: '#ef4444',
+                        backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                        fill: true,
+                        tension: 0.35
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: { beginAtZero: true, ticks: { precision: 0 } }
+                }
+            }
+        });
+
+        // 2. Department Breakdown Chart
+        const deptCtx = document.getElementById('deptChart').getContext('2d');
+        new Chart(deptCtx, {
+            type: 'bar',
+            data: {
+                labels: data.department_punctuality.departments,
+                datasets: [
+                    {
+                        label: 'On-Time',
+                        data: data.department_punctuality.on_time,
+                        backgroundColor: '#10b981'
+                    },
+                    {
+                        label: 'Late',
+                        data: data.department_punctuality.late,
+                        backgroundColor: '#f59e0b'
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    x: { stacked: true },
+                    y: { stacked: true, beginAtZero: true, ticks: { precision: 0 } }
+                }
+            }
+        });
+    })
+    .catch(e => console.error("Chart loading error:", e));
+</script>
+{% endblock %}

@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{% block title %}Manager Portal | GeoFace Enterprise{% endblock %}</title>
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Bootstrap 5 CSS & Icons -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=5">
+    <style>
+        :root {
+            --mgr-primary: #d97706;
+            --mgr-primary-hover: #b45309;
+            --mgr-bg: #fffbeb;
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 50%, #e2e8f0 100%);
+            min-height: 100vh;
+        }
+        .manager-navbar {
+            background: rgba(15, 23, 42, 0.96);
+            backdrop-filter: blur(12px);
+            border-bottom: 2px solid #d97706;
+            padding: 12px 20px;
+        }
+        .manager-badge {
+            background: linear-gradient(135deg, #d97706 0%, #f59e0b 100%);
+            color: white;
+            box-shadow: 0 4px 12px rgba(217, 119, 6, 0.35);
+        }
+        .nav-link.manager-active {
+            color: #f59e0b !important;
+            font-weight: 700;
+            border-bottom: 2px solid #f59e0b;
+        }
+    </style>
+    {% block head %}{% endblock %}
+</head>
+<body>
+    <!-- Manager Navigation Bar -->
+    <nav class="navbar navbar-expand-lg manager-navbar sticky-top">
+        <div class="container-fluid px-sm-4">
+            <a class="navbar-brand d-flex align-items-center gap-2 text-white" href="/manager/dashboard">
+                <div class="logo-badge manager-badge" style="width: 36px; height: 36px; font-size: 1.1rem; border-radius: 10px; display:flex; align-items:center; justify-content:center;">
+                    <i class="bi bi-people-fill"></i>
+                </div>
+                <div>
+                    <span class="fw-bold fs-6 text-white">GeoFace Enterprise</span>
+                    <span class="badge bg-warning text-dark ms-1" style="font-size: 0.7rem; font-weight: 700;">Manager Portal</span>
+                </div>
+            </a>
+
+            <button class="navbar-toggler border-0 shadow-none text-white" type="button" data-bs-toggle="collapse" data-bs-target="#mgrNav">
+                <i class="bi bi-list fs-4 text-white"></i>
+            </button>
+
+            <div class="collapse navbar-collapse" id="mgrNav">
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0 ms-lg-4 gap-lg-2">
+                    <li class="nav-item">
+                        <a class="nav-link py-2 px-3 fw-medium text-light {% if request.path == '/manager/' or 'dashboard' in request.path %}manager-active{% endif %}" href="/manager/dashboard">
+                            <i class="bi bi-speedometer2 me-1"></i> Team Dashboard
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link py-2 px-3 fw-medium text-light {% if 'attendance' in request.path %}manager-active{% endif %}" href="/manager/attendance">
+                            <i class="bi bi-calendar-check me-1"></i> Team Attendance
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link py-2 px-3 fw-medium text-light {% if 'correction-requests' in request.path %}manager-active{% endif %}" href="/manager/correction-requests">
+                            <i class="bi bi-inbox-fill me-1"></i> Correction Queue
+                        </a>
+                    </li>
+                </ul>
+
+                <div class="d-flex align-items-center gap-3 pt-2 pt-lg-0 border-top border-lg-0">
+                    <div class="d-flex align-items-center gap-2">
+                        <img src="https://ui-avatars.com/api/?name={{ session.get('employee_name', 'Manager')|urlencode }}&background=d97706&color=fff&rounded=true" style="width: 34px; height: 34px;" alt="Manager">
+                        <div class="lh-sm text-white">
+                            <div class="fw-bold small">{{ session.get('employee_name', 'Manager') }}</div>
+                            <div class="text-white-50" style="font-size: 0.72rem;">Role: Team Lead / Manager</div>
+                        </div>
+                    </div>
+                    <a href="/employee/logout" class="btn btn-outline-warning btn-sm rounded-pill px-3" title="Sign Out">
+                        <i class="bi bi-box-arrow-right"></i>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Flash Messages -->
+    <div class="container-fluid px-sm-4 pt-3">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category if category != 'error' else 'danger' }} alert-dismissible fade show rounded-3 shadow-sm py-2 px-3 small" role="alert">
+                        <i class="bi bi-info-circle me-1"></i> {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+    </div>
+
+    <!-- Main Content -->
+    <main>
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- Bootstrap Bundle JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.1/dist/js/bootstrap.bundle.min.js"></script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+{% block title %}System & Engine Settings | GeoFace AI{% endblock %}
+
+{% block content %}
+<div class="container-fluid p-0">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h3 class="fw-bold text-dark mb-1">Engine & Recognition Settings</h3>
+            <p class="text-muted small mb-0">Tune facial embedding distance thresholds, duplicate cooldown windows, and geocoding providers.</p>
+        </div>
+    </div>
+
+    {% if saved %}
+    <div class="alert alert-success alert-dismissible fade show rounded-4 shadow-sm mb-4" role="alert">
+        <i class="bi bi-check-circle-fill me-2"></i> Settings successfully updated and applied to the runtime engine!
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    {% endif %}
+
+    <div class="row g-4">
+        <div class="col-lg-8">
+            <div class="glass-card">
+                <form method="POST" action="/settings">
+                    <!-- Section: Biometric Thresholds -->
+                    <h6 class="fw-bold text-dark border-bottom pb-2 mb-3">
+                        <i class="bi bi-shield-check text-primary me-2"></i>Deep Face-Embedding Matching Parameters
+                    </h6>
+
+                    <div class="mb-4">
+                        <label class="form-label fw-semibold text-dark small mb-1">
+                            Primary Match Threshold (Distance &le; Threshold)
+                        </label>
+                        <div class="d-flex align-items-center gap-3">
+                            <input type="range" class="form-range" id="matchRange" min="0.30" max="0.75" step="0.01" value="{{ match_threshold }}" oninput="document.getElementById('matchVal').value = this.value">
+                            <input type="number" step="0.01" name="match_threshold" id="matchVal" class="form-control form-control-sm text-center fw-bold" style="width: 80px;" value="{{ match_threshold }}" oninput="document.getElementById('matchRange').value = this.value">
+                        </div>
+                        <div class="text-muted" style="font-size: 0.76rem;">
+                            Lower value = stricter matching (fewer false positives). Recommended: <strong>0.50 - 0.58</strong> for dlib ResNet embeddings.
+                        </div>
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="form-label fw-semibold text-dark small mb-1">
+                            Secondary Review / Flag Threshold (Distance)
+                        </label>
+                        <div class="d-flex align-items-center gap-3">
+                            <input type="range" class="form-range" id="reviewRange" min="0.50" max="0.80" step="0.01" value="{{ review_threshold }}" oninput="document.getElementById('reviewVal').value = this.value">
+                            <input type="number" step="0.01" name="review_threshold" id="reviewVal" class="form-control form-control-sm text-center fw-bold" style="width: 80px;" value="{{ review_threshold }}" oninput="document.getElementById('reviewRange').value = this.value">
+                        </div>
+                        <div class="text-muted" style="font-size: 0.76rem;">
+                            Matches with distance close to threshold are marked as <code>flagged</code> for admin review rather than auto-verified.
+                        </div>
+                    </div>
+
+                    <!-- Section: Automation Rules -->
+                    <h6 class="fw-bold text-dark border-bottom pb-2 mb-3 mt-4">
+                        <i class="bi bi-clock-history text-warning me-2"></i>Automation Rules & Duplicate Prevention
+                    </h6>
+
+                    <div class="mb-4">
+                        <label class="form-label fw-semibold text-dark small mb-1">
+                            Duplicate Check Cooldown Window (Seconds)
+                        </label>
+                        <input type="number" name="duplicate_cooldown_seconds" class="form-control form-control-sm" style="max-width: 200px;" value="{{ cooldown }}" required>
+                        <div class="text-muted mt-1" style="font-size: 0.76rem;">
+                            Prevents marking attendance twice within this window (e.g. 300 = 5 minutes). Duplicate attempts are gracefully rejected with a cooldown notice.
+                        </div>
+                    </div>
+
+                    <!-- Section: Geocoding Provider -->
+                    <h6 class="fw-bold text-dark border-bottom pb-2 mb-3 mt-4">
+                        <i class="bi bi-geo-alt text-danger me-2"></i>Geocoding & Reverse Address Service
+                    </h6>
+
+                    <div class="mb-4">
+                        <label class="form-label fw-semibold text-dark small mb-1">Provider</label>
+                        <select name="geocoding_provider" class="form-select form-select-sm" style="max-width: 320px;">
+                            <option value="nominatim" {% if geocoding_provider == 'nominatim' %}selected{% endif %}>OpenStreetMap Nominatim (Free, No Key Required)</option>
+                            <option value="google" {% if geocoding_provider == 'google' %}selected{% endif %}>Google Geocoding API (Fallback)</option>
+                        </select>
+                        <div class="text-muted mt-1" style="font-size: 0.76rem;">
+                            Nominatim includes automatic timeout fallback and coordinate caching to prevent rate-limit penalties.
+                        </div>
+                    </div>
+
+                    <div class="pt-3 border-top">
+                        <button type="submit" class="btn btn-primary btn-sm rounded-pill px-4 fw-semibold shadow-sm">
+                            <i class="bi bi-save me-1"></i> Save Configuration
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <div class="col-lg-4">
+            <div class="glass-card">
+                <h6 class="fw-bold text-dark mb-3"><i class="bi bi-info-circle text-primary me-2"></i>Architecture Overview</h6>
+                <div class="d-flex flex-column gap-3 small text-secondary">
+                    <div>
+                        <div class="fw-bold text-dark">Recognition Engine</div>
+                        <div>dlib ResNet Deep Metric Learning (128-dimensional embedding space). Matches evaluated using Euclidean distance & Cosine similarity.</div>
+                    </div>
+                    <div>
+                        <div class="fw-bold text-dark">Liveness Protocol</div>
+                        <div>Eye Aspect Ratio (EAR) blink detection across consecutive frames + landmark geometric variance analysis.</div>
+                    </div>
+                    <div>
+                        <div class="fw-bold text-dark">Geotagging Pipeline</div>
+                        <div>Live client W3C Geolocation API + Server-side Pillow watermark stamping with semi-transparent overlay banner.</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

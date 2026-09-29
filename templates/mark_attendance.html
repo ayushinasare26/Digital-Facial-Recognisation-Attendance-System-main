@@ -1,0 +1,207 @@
+{% extends "base.html" %}
+{% block title %}Mark Attendance (Live Geo-Verified) | GeoFace AI{% endblock %}
+
+{% block content %}
+<div class="container-fluid p-0">
+    <!-- Header -->
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
+        <div>
+            <h3 class="fw-bold text-dark mb-1">Live Geo-Verified Attendance Check-In</h3>
+            <p class="text-muted small mb-0">Capture a live selfie, pass the liveness challenge, and tag your physical coordinates.</p>
+        </div>
+        <!-- Demo Mode Switch -->
+        <div class="form-check form-switch bg-white px-3 py-2 rounded-pill border shadow-sm d-flex align-items-center gap-2">
+            <input class="form-check-input ms-0 me-2" type="checkbox" id="demoModeToggle">
+            <label class="form-check-label small fw-semibold text-secondary mb-0" for="demoModeToggle">
+                <i class="bi bi-magic text-warning"></i> Demo Mode (Mock Camera & GPS)
+            </label>
+        </div>
+    </div>
+
+    <!-- Main Grid -->
+    <div class="row g-4">
+        <!-- Left Column: Camera Viewport & Controls -->
+        <div class="col-lg-7">
+            <div class="glass-card text-center position-relative">
+                <div class="d-flex justify-content-between align-items-center mb-3 text-start">
+                    <div>
+                        <h6 class="fw-bold mb-0 text-dark">Live Biometric & Location Scanner</h6>
+                        <span class="text-muted" style="font-size: 0.76rem;" id="scannerStatusText">Camera standby. Click "Start Camera" to initialize.</span>
+                    </div>
+                    <div id="liveGpsBadge" class="badge bg-light text-muted border px-2 py-1 small">
+                        <i class="bi bi-geo-alt"></i> GPS Waiting...
+                    </div>
+                </div>
+
+                <!-- Video / Camera Preview -->
+                <div class="camera-container mx-auto position-relative" style="max-width: 580px; width: 100%;">
+                    <video id="markVideo" width="100%" height="auto" autoplay playsinline muted style="aspect-ratio: 4/3; object-fit: cover; display: block; border-radius: 12px;"></video>
+                    
+                    <!-- Oval Face Target Guide -->
+                    <div class="face-guide-overlay" id="faceGuide"></div>
+
+                    <!-- Liveness Challenge Banner (Overlay) -->
+                    <div id="challengeBanner" class="position-absolute bottom-0 start-0 end-0 p-3 text-white text-center" style="background: rgba(15, 23, 42, 0.85); backdrop-filter: blur(8px); display: none;">
+                        <div class="d-flex align-items-center justify-content-center gap-2 mb-1">
+                            <span class="spinner-grow spinner-grow-sm text-warning" role="status"></span>
+                            <span class="fw-bold" id="challengeTitle">Liveness Check</span>
+                        </div>
+                        <div class="small text-light" id="challengeInstruction">Please look directly at camera and blink naturally...</div>
+                        <div class="progress mt-2 mx-auto" style="height: 4px; max-width: 200px;">
+                            <div class="progress-bar bg-warning" id="challengeProgress" style="width: 0%"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Action Controls -->
+                <div class="d-flex flex-wrap justify-content-center gap-3 mt-4">
+                    <button id="startCamBtn" class="btn btn-outline-primary px-4 rounded-pill fw-semibold shadow-sm">
+                        <i class="bi bi-camera-video me-1"></i> Start Camera
+                    </button>
+                    <button id="captureVerifyBtn" class="btn btn-primary px-4 rounded-pill fw-semibold shadow-sm" disabled>
+                        <i class="bi bi-shield-check me-1"></i> Verify & Mark Attendance
+                    </button>
+                    <button id="stopCamBtn" class="btn btn-outline-danger px-3 rounded-pill fw-semibold" disabled>
+                        <i class="bi bi-stop-circle me-1"></i> Stop
+                    </button>
+                </div>
+
+                <!-- Location explanation note -->
+                <div class="mt-3 p-2 bg-light rounded-3 text-start d-flex align-items-center gap-2 border">
+                    <i class="bi bi-info-circle text-primary fs-5 ms-1"></i>
+                    <div class="text-muted" style="font-size: 0.76rem;">
+                        <strong>Why GPS is required:</strong> Coordinates prevent remote buddy-punching by watermarking your physical location directly onto your attendance proof photograph.
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Column: 9-Stage Pipeline Activity & Real-Time Status -->
+        <div class="col-lg-5">
+            <!-- Pipeline Execution Monitor Card -->
+            <div class="glass-card mb-4">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h6 class="fw-bold mb-0 text-dark">
+                        <i class="bi bi-cpu text-primary me-2"></i>9-Stage Verification Pipeline
+                    </h6>
+                    <span class="badge bg-secondary-subtle text-secondary" id="pipelineStateBadge">Idle</span>
+                </div>
+
+                <!-- The 9 Stages -->
+                <div class="pipeline-stepper" id="pipelineStepper">
+                    <div class="stage-card" id="stage-1">
+                        <div class="d-flex align-items-center gap-2">
+                            <span class="badge bg-light text-muted border rounded-circle" style="width: 24px; height: 24px; display: inline-flex; align-items: center; justify-content: center;">1</span>
+                            <span class="small fw-semibold">Photo Intake</span>
+                        </div>
+                        <span class="badge bg-light text-muted border stage-status">Pending</span>
+                    </div>
+
+                    <div class="stage-card" id="stage-2">
+                        <div class="d-flex align-items-center gap-2">
+                            <span class="badge bg-light text-muted border rounded-circle" style="width: 24px; height: 24px; display: inline-flex; align-items: center; justify-content: center;">2</span>
+                            <span class="small fw-semibold">Liveness Check (Blink/Pose)</span>
+                        </div>
+                        <span class="badge bg-light text-muted border stage-status">Pending</span>
+                    </div>
+
+                    <div class="stage-card" id="stage-3">
+                        <div class="d-flex align-items-center gap-2">
+                            <span class="badge bg-light text-muted border rounded-circle" style="width: 24px; height: 24px; display: inline-flex; align-items: center; justify-content: center;">3</span>
+                            <span class="small fw-semibold">Face Detection</span>
+                        </div>
+                        <span class="badge bg-light text-muted border stage-status">Pending</span>
+                    </div>
+
+                    <div class="stage-card" id="stage-4">
+                        <div class="d-flex align-items-center gap-2">
+                            <span class="badge bg-light text-muted border rounded-circle" style="width: 24px; height: 24px; display: inline-flex; align-items: center; justify-content: center;">4</span>
+                            <span class="small fw-semibold">Embedding Extraction (128-d)</span>
+                        </div>
+                        <span class="badge bg-light text-muted border stage-status">Pending</span>
+                    </div>
+
+                    <div class="stage-card" id="stage-5">
+                        <div class="d-flex align-items-center gap-2">
+                            <span class="badge bg-light text-muted border rounded-circle" style="width: 24px; height: 24px; display: inline-flex; align-items: center; justify-content: center;">5</span>
+                            <span class="small fw-semibold">Embedding Gallery Match</span>
+                        </div>
+                        <span class="badge bg-light text-muted border stage-status">Pending</span>
+                    </div>
+
+                    <div class="stage-card" id="stage-6">
+                        <div class="d-flex align-items-center gap-2">
+                            <span class="badge bg-light text-muted border rounded-circle" style="width: 24px; height: 24px; display: inline-flex; align-items: center; justify-content: center;">6</span>
+                            <span class="small fw-semibold">Geolocation Capture</span>
+                        </div>
+                        <span class="badge bg-light text-muted border stage-status">Pending</span>
+                    </div>
+
+                    <div class="stage-card" id="stage-7">
+                        <div class="d-flex align-items-center gap-2">
+                            <span class="badge bg-light text-muted border rounded-circle" style="width: 24px; height: 24px; display: inline-flex; align-items: center; justify-content: center;">7</span>
+                            <span class="small fw-semibold">Reverse Geocoding</span>
+                        </div>
+                        <span class="badge bg-light text-muted border stage-status">Pending</span>
+                    </div>
+
+                    <div class="stage-card" id="stage-8">
+                        <div class="d-flex align-items-center gap-2">
+                            <span class="badge bg-light text-muted border rounded-circle" style="width: 24px; height: 24px; display: inline-flex; align-items: center; justify-content: center;">8</span>
+                            <span class="small fw-semibold">Geotag Photo Stamping</span>
+                        </div>
+                        <span class="badge bg-light text-muted border stage-status">Pending</span>
+                    </div>
+
+                    <div class="stage-card" id="stage-9">
+                        <div class="d-flex align-items-center gap-2">
+                            <span class="badge bg-light text-muted border rounded-circle" style="width: 24px; height: 24px; display: inline-flex; align-items: center; justify-content: center;">9</span>
+                            <span class="small fw-semibold">Audit Record Saved</span>
+                        </div>
+                        <span class="badge bg-light text-muted border stage-status">Pending</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Attendance Result Box (Hidden until result) -->
+            <div class="glass-card" id="resultCard" style="display: none;">
+                <div class="d-flex align-items-center justify-content-between mb-3">
+                    <h6 class="fw-bold mb-0" id="resultCardTitle">Verification Result</h6>
+                    <span id="resultBadge" class="badge-verified">Verified</span>
+                </div>
+                
+                <div class="text-center mb-3">
+                    <img id="resultPhoto" src="" alt="Geotagged Proof" class="img-fluid rounded-3 shadow-sm border" style="max-height: 200px; width: 100%; object-fit: cover;">
+                </div>
+
+                <div class="p-3 bg-light rounded-3">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <span class="fw-bold text-dark fs-6" id="resultPersonName">—</span>
+                        <span class="badge bg-primary text-white" id="resultConfidence">—% Match</span>
+                    </div>
+                    <div class="text-muted small mb-2" id="resultTimestamp">—</div>
+                    <div class="d-flex align-items-start gap-1 text-secondary small">
+                        <i class="bi bi-geo-alt-fill text-danger mt-1"></i>
+                        <span id="resultAddress">—</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Error Feedback Alert (Hidden until error) -->
+            <div class="alert alert-danger shadow-sm rounded-4 mt-3" id="errorAlert" style="display: none;">
+                <div class="d-flex align-items-start gap-2">
+                    <i class="bi bi-exclamation-octagon-fill fs-5 mt-1"></i>
+                    <div>
+                        <div class="fw-bold" id="errorAlertTitle">Verification Failed</div>
+                        <div class="small" id="errorAlertMessage">Reason here</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/camera_mark.js') }}?v=3"></script>
+{% endblock %}

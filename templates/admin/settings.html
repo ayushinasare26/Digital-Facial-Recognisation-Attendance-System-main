@@ -1,0 +1,85 @@
+{% extends "admin/base_admin.html" %}
+{% block title %}Engine Settings | GeoFace Admin{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
+    <div>
+        <h4 class="fw-bold mb-1 text-dark">Biometric Engine & Security Settings</h4>
+        <p class="text-muted small mb-0">Tune facial embedding distance thresholds, spoof sensitivity, and duplicate limits</p>
+    </div>
+</div>
+
+<div class="row g-4">
+    <div class="col-lg-8">
+        <div class="card border-0 shadow-sm rounded-4 p-4 bg-white">
+            <form method="POST" action="/admin/settings">
+                <div class="row g-3 mb-4">
+                    <div class="col-md-6">
+                        <label class="form-label small fw-semibold text-secondary">
+                            Strict Match Threshold (Euclidean Distance)
+                        </label>
+                        <input type="number" step="0.01" min="0.1" max="0.8" name="match_threshold" class="form-control rounded-3" value="{{ match_threshold }}" required>
+                        <span class="text-muted" style="font-size: 0.75rem;">Default: 0.48. Lower values increase security against false matches.</span>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label small fw-semibold text-secondary">
+                            Review / Flag Threshold
+                        </label>
+                        <input type="number" step="0.01" min="0.1" max="0.8" name="review_threshold" class="form-control rounded-3" value="{{ review_threshold }}" required>
+                        <span class="text-muted" style="font-size: 0.75rem;">Default: 0.44. Distances above this trigger administrator review.</span>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label small fw-semibold text-secondary">
+                            Duplicate Check-in Cooldown (Seconds)
+                        </label>
+                        <input type="number" min="0" max="86400" name="duplicate_cooldown_seconds" class="form-control rounded-3" value="{{ cooldown }}" required>
+                        <span class="text-muted" style="font-size: 0.75rem;">Default: 300s (5 mins) prevents rapid multiple check-ins.</span>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label small fw-semibold text-secondary">
+                            Geocoding Provider
+                        </label>
+                        <select name="geocoding_provider" class="form-select rounded-3">
+                            <option value="nominatim" {% if geocoding_provider == 'nominatim' %}selected{% endif %}>OpenStreetMap / Nominatim (Default)</option>
+                            <option value="google" {% if geocoding_provider == 'google' %}selected{% endif %}>Google Maps Geocoding API</option>
+                        </select>
+                        <span class="text-muted" style="font-size: 0.75rem;">Reverse geocoder for GPS watermark resolution.</span>
+                    </div>
+                </div>
+
+                <div class="d-flex justify-content-end">
+                    <button type="submit" class="btn btn-primary rounded-pill px-4 fw-semibold" style="background: var(--admin-primary); border-color: var(--admin-primary);">
+                        <i class="bi bi-save me-1"></i> Save Configuration
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="col-lg-4">
+        <div class="card border-0 shadow-sm rounded-4 p-4 bg-white h-100">
+            <h6 class="fw-bold text-dark mb-3">Model Architecture</h6>
+            <div class="d-flex align-items-center gap-2 mb-2">
+                <i class="bi bi-cpu text-primary fs-5"></i>
+                <span class="fw-bold small text-dark">dlib ResNet-34 128-D Vector</span>
+            </div>
+            <p class="text-muted small mb-3">
+                Calculates Euclidean metric distance between reference multi-angle embeddings and live burst camera frames.
+            </p>
+
+            <div class="border-top pt-3">
+                <h6 class="fw-bold text-dark small mb-2">Anti-Spoofing & Security</h6>
+                <ul class="list-unstyled small text-muted mb-0">
+                    <li class="mb-2"><i class="bi bi-check2 text-success me-1"></i> Multi-frame blink challenge</li>
+                    <li class="mb-2"><i class="bi bi-check2 text-success me-1"></i> Minimum face resolution guard (>=100x100)</li>
+                    <li class="mb-2"><i class="bi bi-check2 text-success me-1"></i> Dynamic ambiguity margin check</li>
+                    <li class="mb-2"><i class="bi bi-check2 text-success me-1"></i> GPS accuracy & timestamp hash</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

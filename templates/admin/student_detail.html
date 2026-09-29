@@ -1,0 +1,169 @@
+{% extends "admin/base_admin.html" %}
+{% block title %}{{ student.name }} | Profile & History | GeoFace Admin{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
+    <div>
+        <a href="/admin/attendance" class="text-decoration-none small text-muted mb-1 d-inline-block">
+            &larr; Back to All Attendance
+        </a>
+        <h4 class="fw-bold mb-0 text-dark">{{ student.name }}</h4>
+        <span class="text-muted small">Roll: {{ student.roll or '—' }} &bull; {{ student.class or 'Student' }} &bull; ID #{{ student.id }}</span>
+    </div>
+    <div class="d-flex gap-2">
+        <a href="/admin/enroll" class="btn btn-outline-primary btn-sm rounded-pill px-3">
+            <i class="bi bi-person-plus me-1"></i> Enroll Another
+        </a>
+    </div>
+</div>
+
+<!-- Profile Overview & Metrics -->
+<div class="row g-4 mb-4">
+    <div class="col-lg-4">
+        <div class="card border-0 shadow-sm rounded-4 p-4 bg-white h-100">
+            <div class="text-center mb-3">
+                <div class="mx-auto rounded-circle d-flex align-items-center justify-content-center text-white fw-bold mb-2 shadow" style="width: 80px; height: 80px; font-size: 2rem; background: linear-gradient(135deg, #4f46e5, #6366f1);">
+                    {{ student.name[:1] }}
+                </div>
+                <h5 class="fw-bold text-dark mb-0">{{ student.name }}</h5>
+                <span class="badge bg-primary-subtle text-primary border border-primary-subtle rounded-pill px-3 py-1 mt-1 small">
+                    Enrolled Biometrics
+                </span>
+            </div>
+
+            <div class="border-top pt-3">
+                <div class="d-flex justify-content-between py-1 small">
+                    <span class="text-muted">Student ID</span>
+                    <strong class="text-dark">#{{ student.id }}</strong>
+                </div>
+                <div class="d-flex justify-content-between py-1 small">
+                    <span class="text-muted">Roll / Employee Code</span>
+                    <strong class="text-dark">{{ student.roll or '—' }}</strong>
+                </div>
+                <div class="d-flex justify-content-between py-1 small">
+                    <span class="text-muted">Class / Dept</span>
+                    <strong class="text-dark">{{ student.class or '—' }}</strong>
+                </div>
+                <div class="d-flex justify-content-between py-1 small">
+                    <span class="text-muted">Email</span>
+                    <strong class="text-dark">{{ student.email or '—' }}</strong>
+                </div>
+                <div class="d-flex justify-content-between py-1 small">
+                    <span class="text-muted">System Role</span>
+                    <span class="badge bg-secondary text-white">{{ student.role or 'user' }}</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Attendance Stats & Ratio -->
+    <div class="col-lg-8">
+        <div class="card border-0 shadow-sm rounded-4 p-4 bg-white h-100">
+            <h6 class="fw-bold text-dark mb-3">Attendance Performance & Regularity</h6>
+            
+            <div class="row g-3 mb-4">
+                <div class="col-sm-4">
+                    <div class="p-3 rounded-3 bg-light border">
+                        <span class="text-muted small d-block">Overall Attendance</span>
+                        <h3 class="fw-bold mb-0 {% if attendance_percent >= 75 %}text-success{% else %}text-warning{% endif %}">
+                            {{ attendance_percent }}%
+                        </h3>
+                    </div>
+                </div>
+                <div class="col-sm-4">
+                    <div class="p-3 rounded-3 bg-light border">
+                        <span class="text-muted small d-block">Days Attended</span>
+                        <h3 class="fw-bold text-dark mb-0">{{ attended_days }}</h3>
+                    </div>
+                </div>
+                <div class="col-sm-4">
+                    <div class="p-3 rounded-3 bg-light border">
+                        <span class="text-muted small d-block">Total Working Days</span>
+                        <h3 class="fw-bold text-dark mb-0">{{ total_days }}</h3>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Progress bar -->
+            <div class="mb-4">
+                <div class="d-flex justify-content-between small text-muted mb-1">
+                    <span>Attendance Rate</span>
+                    <span class="fw-bold">{{ attendance_percent }}%</span>
+                </div>
+                <div class="progress" style="height: 10px;">
+                    <div class="progress-bar {% if attendance_percent >= 75 %}bg-success{% else %}bg-warning{% endif %}" style="width: {{ attendance_percent }}%"></div>
+                </div>
+            </div>
+
+            <div class="alert alert-info py-2 px-3 small rounded-3 mb-0">
+                <i class="bi bi-info-circle-fill me-1"></i> Biometric attendance records are automatically checked for spatial anomalies and liveness spoofing.
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- History Table Scoped to this Student -->
+<div class="card border-0 shadow-sm rounded-4 bg-white overflow-hidden">
+    <div class="p-3 border-bottom d-flex justify-content-between align-items-center">
+        <h6 class="fw-bold text-dark mb-0">Complete Geotagged History ({{ student.name }})</h6>
+        <span class="text-muted small">{{ history|length }} events logged</span>
+    </div>
+
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0" style="font-size: 0.86rem;">
+            <thead class="table-light">
+                <tr>
+                    <th class="ps-4">ID</th>
+                    <th>Date & Time</th>
+                    <th>Geotagged Location</th>
+                    <th>Match Confidence</th>
+                    <th>Status</th>
+                    <th class="text-end pe-4">Photo Evidence</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% if history %}
+                    {% for h in history %}
+                    <tr>
+                        <td class="ps-4 text-muted">#{{ h.id }}</td>
+                        <td>{{ h.time_display or (h.timestamp | local_time) }}</td>
+                        <td>
+                            <div class="text-truncate" style="max-width: 250px;" title="{{ h.address }}">
+                                <i class="bi bi-geo-alt-fill text-danger me-1"></i>{{ h.address or 'Location Unresolved' }}
+                            </div>
+                        </td>
+                        <td>
+                            <span class="badge {% if h.confidence and h.confidence >= 0.75 %}bg-success-subtle text-success border border-success-subtle{% else %}bg-warning-subtle text-warning border border-warning-subtle{% endif %}">
+                                {% if h.confidence %}{{ (h.confidence * 100)|round(1) }}%{% else %}N/A{% endif %}
+                            </span>
+                        </td>
+                        <td>
+                            {% if h.status == 'success' %}
+                                <span class="badge-verified"><i class="bi bi-check-circle-fill me-1"></i>Verified</span>
+                            {% else %}
+                                <span class="badge-flagged"><i class="bi bi-flag-fill me-1"></i>Flagged</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-end pe-4">
+                            {% if h.geotagged_photo_path %}
+                                <a href="/{{ h.geotagged_photo_path }}" target="_blank" class="btn btn-sm btn-light border py-1 px-2" title="Open High-Res Photo">
+                                    <i class="bi bi-image"></i> Proof
+                                </a>
+                            {% else %}
+                                <span class="text-muted small">—</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr>
+                        <td colspan="6" class="text-center py-4 text-muted">
+                            No attendance history logged for this student yet.
+                        </td>
+                    </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

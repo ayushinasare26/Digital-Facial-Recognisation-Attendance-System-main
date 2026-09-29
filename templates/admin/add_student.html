@@ -1,0 +1,261 @@
+{% extends "admin/base_admin.html" %}
+{% block title %}Enroll New Employee & Biometrics | GeoFace Admin{% endblock %}
+{% block page_title %}Enroll Employee & Biometric Consent{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h4 class="fw-bold text-dark mb-1">Enroll Employee & Biometric Template Capture</h4>
+        <p class="text-muted small mb-0">Record personal metadata, site/shift assignment, biometric consent, and multi-angle face embeddings</p>
+    </div>
+    <a href="/admin/employees" class="btn btn-outline-secondary btn-sm rounded-pill px-3 shadow-sm bg-white">
+        <i class="bi bi-arrow-left me-1"></i> Back to Roster
+    </a>
+</div>
+
+<div class="row g-4 justify-content-center">
+    <div class="col-lg-10">
+        <div class="card border-0 shadow-sm rounded-4 p-4 bg-white">
+            <!-- Step Navigation Indicators -->
+            <div class="d-flex justify-content-between align-items-center border-bottom pb-3 mb-4">
+                <div class="d-flex align-items-center gap-2">
+                    <span class="badge bg-primary rounded-circle" style="width: 26px; height: 26px; display: inline-flex; align-items: center; justify-content: center;">1</span>
+                    <span class="fw-bold small text-dark">Workforce Info & Consent</span>
+                </div>
+                <div class="d-none d-sm-block text-muted">&bull; &bull; &bull;</div>
+                <div class="d-flex align-items-center gap-2">
+                    <span class="badge bg-secondary rounded-circle" id="step2Badge" style="width: 26px; height: 26px; display: inline-flex; align-items: center; justify-content: center;">2</span>
+                    <span class="fw-semibold small text-muted" id="step2Label">Multi-Angle Capture</span>
+                </div>
+                <div class="d-none d-sm-block text-muted">&bull; &bull; &bull;</div>
+                <div class="d-flex align-items-center gap-2">
+                    <span class="badge bg-secondary rounded-circle" id="step3Badge" style="width: 26px; height: 26px; display: inline-flex; align-items: center; justify-content: center;">3</span>
+                    <span class="fw-semibold small text-muted" id="step3Label">Embedding Indexing</span>
+                </div>
+            </div>
+
+            <!-- Form Step -->
+            <form id="studentForm">
+                <div class="row g-3 mb-3">
+                    <div class="col-md-6">
+                        <label class="form-label small fw-semibold text-secondary">Full Name *</label>
+                        <input class="form-control rounded-3" name="name" placeholder="e.g. Ananya Sharma" required>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label small fw-semibold text-secondary">Employee Code / ID *</label>
+                        <input class="form-control rounded-3" name="employee_code" placeholder="e.g. EMP-1042" required>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label small fw-semibold text-secondary">System Role</label>
+                        <select name="role" class="form-select rounded-3">
+                            <option value="employee" selected>Employee (Standard)</option>
+                            <option value="manager">Manager / Team Lead</option>
+                            <option value="admin">Administrator</option>
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label small fw-semibold text-secondary">Work Email Address</label>
+                        <input type="email" class="form-control rounded-3" name="email" placeholder="e.g. ananya@enterprise.corp">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label small fw-semibold text-secondary">Department</label>
+                        <select name="department_id" class="form-select rounded-3">
+                            {% for d in departments %}
+                            <option value="{{ d.id }}">{{ d.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label small fw-semibold text-secondary">Assigned Work Site (Geofence)</label>
+                        <select name="site_id" class="form-select rounded-3">
+                            {% for s in sites %}
+                            <option value="{{ s.id }}">{{ s.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label small fw-semibold text-secondary">Assigned Shift Schedule</label>
+                        <select name="shift_id" class="form-select rounded-3">
+                            {% for sh in shifts %}
+                            <option value="{{ sh.id }}">{{ sh.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label small fw-semibold text-secondary">Reporting Manager</label>
+                        <select name="manager_id" class="form-select rounded-3">
+                            <option value="">Direct to HR / None</option>
+                            {% for m in managers %}
+                            <option value="{{ m.id }}">{{ m.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Mandatory Biometric Consent Checkbox -->
+                <div class="p-3 bg-light rounded-3 border mb-4">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" name="biometric_consent" id="biometricConsentCheckbox" value="1" required>
+                        <label class="form-check-label small fw-bold text-dark" for="biometricConsentCheckbox">
+                            Explicit Biometric Consent Acknowledged & Granted *
+                        </label>
+                        <div class="text-muted small mt-1" style="font-size: 0.76rem;">
+                            I certify that the employee has provided explicit, informed consent for the capture of facial reference imagery and generation of 128-dimensional biometric mathematical template vectors solely for workforce attendance verification, in compliance with GDPR Art. 9, India DPDP Act, and organizational data privacy standards.
+                        </div>
+                    </div>
+                </div>
+
+                <div class="d-flex flex-wrap gap-2 mb-4">
+                    <button id="saveInfoBtn" type="submit" class="btn btn-primary rounded-pill px-4 fw-semibold shadow-sm" style="background: var(--admin-primary); border-color: var(--admin-primary);">
+                        <i class="bi bi-save me-1"></i> 1. Save Info & Unlock Camera
+                    </button>
+                    <button id="startCaptureBtn" type="button" class="btn btn-warning rounded-pill px-4 fw-semibold shadow-sm" disabled>
+                        <i class="bi bi-camera me-1"></i> 2. Capture Reference Angles
+                    </button>
+                    <a id="finishBtn" href="/admin/employees" class="btn btn-success rounded-pill px-4 fw-semibold shadow-sm" style="display: none;">
+                        <i class="bi bi-check-lg me-1"></i> 3. Finish & View Employee Roster
+                    </a>
+                </div>
+            </form>
+
+            <!-- Feedback banner -->
+            <div id="enrollFeedback" class="alert d-none rounded-3 py-2 px-3 small mb-3"></div>
+
+            <!-- Video Viewport -->
+            <div class="text-center p-3 bg-light rounded-4 border">
+                <div class="camera-container mx-auto position-relative" style="max-width: 520px; width: 100%;">
+                    <video id="video" width="100%" height="auto" autoplay playsinline muted style="aspect-ratio: 4/3; object-fit: cover; display: block; border-radius: 12px;"></video>
+                    <div class="face-guide-overlay" id="enrollFaceGuide"></div>
+                </div>
+
+                <!-- Angle instruction pill -->
+                <div class="mt-3">
+                    <span id="anglePromptBadge" class="badge bg-primary-subtle text-primary border border-primary-subtle px-3 py-2 fs-6">
+                        Ready. Fill form, check biometric consent, then click "Save Info".
+                    </span>
+                </div>
+
+                <!-- Progress bar -->
+                <div class="mt-3 w-75 mx-auto">
+                    <div class="d-flex justify-content-between small fw-bold text-muted mb-1">
+                        <span>Capture Progress</span>
+                        <span id="captureStatus">0 / 6 photos</span>
+                    </div>
+                    <div class="progress" style="height: 8px;">
+                        <div id="progressBar" class="progress-bar bg-success progress-bar-striped progress-bar-animated" style="width: 0%"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let enrolledStudentId = null;
+let currentStream = null;
+const angles = ["Center View", "Slight Left", "Slight Right", "Slight Up", "Slight Down", "Smile / Natural Expression"];
+let capturedImages = [];
+
+const form = document.getElementById('studentForm');
+const video = document.getElementById('video');
+const saveBtn = document.getElementById('saveInfoBtn');
+const captureBtn = document.getElementById('startCaptureBtn');
+const finishBtn = document.getElementById('finishBtn');
+const feedback = document.getElementById('enrollFeedback');
+const progressBar = document.getElementById('progressBar');
+const captureStatus = document.getElementById('captureStatus');
+const angleBadge = document.getElementById('anglePromptBadge');
+
+form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const consent = document.getElementById('biometricConsentCheckbox').checked;
+    if (!consent) {
+        alert("Explicit biometric consent is required before enrolling face data.");
+        return;
+    }
+
+    const formData = new FormData(form);
+    try {
+        const res = await fetch('/admin/enroll', {
+            method: 'POST',
+            body: formData
+        });
+        const data = await res.json();
+        if (data.success) {
+            enrolledStudentId = data.employee_id || data.student_id;
+            saveBtn.disabled = true;
+            captureBtn.disabled = false;
+            document.getElementById('step2Badge').className = "badge bg-primary rounded-circle";
+            document.getElementById('step2Label').className = "fw-bold small text-dark";
+
+            feedback.className = "alert alert-success rounded-3 py-2 px-3 small mb-3";
+            feedback.innerHTML = `<i class="bi bi-check-circle me-1"></i> Employee <strong>${data.name}</strong> registered (ID #${enrolledStudentId}). Starting camera...`;
+            feedback.classList.remove('d-none');
+
+            // Initialize camera
+            currentStream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 }, audio: false });
+            video.srcObject = currentStream;
+            angleBadge.innerText = "Camera ready. Position face inside guide and click 'Capture Reference Angles'.";
+        } else {
+            alert(data.error || "Enrollment failed.");
+        }
+    } catch (err) {
+        alert("Server error: " + err.message);
+    }
+});
+
+captureBtn.addEventListener('click', async () => {
+    captureBtn.disabled = true;
+    capturedImages = [];
+    const canvas = document.createElement('canvas');
+    canvas.width = video.videoWidth || 640;
+    canvas.height = video.videoHeight || 480;
+    const ctx = canvas.getContext('2d');
+
+    for (let i = 0; i < angles.length; i++) {
+        angleBadge.innerText = `Angle ${i+1}/${angles.length}: Please look ${angles[i]}`;
+        await new Promise(r => setTimeout(r, 1200));
+
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
+        const blob = await (await fetch(dataUrl)).blob();
+        capturedImages.push(blob);
+
+        const pct = Math.round(((i + 1) / angles.length) * 100);
+        progressBar.style.width = pct + "%";
+        captureStatus.innerText = `${i + 1} / ${angles.length} photos`;
+    }
+
+    angleBadge.innerText = "Indexing 128-d deep face embeddings into memory cache...";
+    document.getElementById('step3Badge').className = "badge bg-primary rounded-circle";
+    document.getElementById('step3Label').className = "fw-bold small text-dark";
+
+    // Upload to server
+    const uploadData = new FormData();
+    uploadData.append('student_id', enrolledStudentId);
+    uploadData.append('employee_id', enrolledStudentId);
+    capturedImages.forEach(img => uploadData.append('images[]', img, 'angle.jpg'));
+
+    try {
+        const upRes = await fetch('/admin/upload-face', {
+            method: 'POST',
+            body: uploadData
+        });
+        const upData = await upRes.json();
+        if (upData.success) {
+            angleBadge.className = "badge bg-success-subtle text-success border border-success-subtle px-3 py-2 fs-6";
+            angleBadge.innerHTML = `<i class="bi bi-check-circle-fill me-1"></i> Enrollment Complete! Deep biometric vector generated.`;
+            finishBtn.style.display = "inline-block";
+        } else {
+            alert("Embedding extraction error: " + upData.error);
+            captureBtn.disabled = false;
+        }
+    } catch (err) {
+        alert("Upload failed: " + err.message);
+        captureBtn.disabled = false;
+    }
+});
+</script>
+{% endblock %}

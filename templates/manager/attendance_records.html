@@ -1,0 +1,127 @@
+{% extends "manager/base_manager.html" %}
+{% block title %}Team Attendance Records | Manager Portal{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-sm-4 py-3">
+    <!-- Header -->
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-3">
+        <div>
+            <h4 class="fw-bold text-dark mb-1">Team Attendance Records</h4>
+            <p class="text-muted small mb-0">Searchable history strictly scoped to your managed team members</p>
+        </div>
+        <a href="/manager/dashboard" class="btn btn-outline-secondary rounded-pill px-3">
+            <i class="bi bi-arrow-left me-1"></i> Back to Dashboard
+        </a>
+    </div>
+
+    <!-- Filter Bar -->
+    <div class="card border-0 shadow-sm rounded-4 p-3 bg-white mb-4">
+        <form method="GET" action="/manager/attendance" class="row g-2 align-items-center">
+            <div class="col-md-3">
+                <label class="form-label small text-muted mb-1">Team Member</label>
+                <select name="employee_id" class="form-select form-select-sm rounded-3">
+                    <option value="">All Team Members</option>
+                    {% for tm in team_members %}
+                    <option value="{{ tm.id }}" {% if selected_emp|string == tm.id|string %}selected{% endif %}>{{ tm.name }} ({{ tm.employee_code }})</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label small text-muted mb-1">From Date</label>
+                <input type="date" name="from" class="form-control form-control-sm rounded-3" value="{{ from_date }}">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label small text-muted mb-1">To Date</label>
+                <input type="date" name="to" class="form-control form-control-sm rounded-3" value="{{ to_date }}">
+            </div>
+            <div class="col-md-3 d-flex align-items-end gap-2 pt-md-4">
+                <button type="submit" class="btn btn-sm btn-dark rounded-pill px-3">
+                    <i class="bi bi-funnel"></i> Filter
+                </button>
+                <a href="/manager/attendance" class="btn btn-sm btn-outline-secondary rounded-pill px-3">Reset</a>
+            </div>
+        </form>
+    </div>
+
+    <!-- Records Table -->
+    <div class="card border-0 shadow-sm rounded-4 overflow-hidden bg-white">
+        <div class="card-header bg-white border-0 py-3 px-4 d-flex justify-content-between align-items-center">
+            <h6 class="fw-bold mb-0 text-dark">
+                <i class="bi bi-list-check text-warning me-2"></i>Attendance Log Entries
+            </h6>
+            <span class="badge bg-light text-secondary border">{{ records|length }} records</span>
+        </div>
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0" style="font-size: 0.88rem;">
+                <thead class="table-light text-secondary">
+                    <tr>
+                        <th class="ps-4">Employee</th>
+                        <th>Event Type</th>
+                        <th>Timestamp</th>
+                        <th>Work Site</th>
+                        <th>Verified Location</th>
+                        <th>Punctuality</th>
+                        <th>Audit Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if records %}
+                        {% for r in records %}
+                        <tr>
+                            <td class="ps-4">
+                                <div class="fw-bold text-dark">{{ r.name }}</div>
+                                <div class="text-muted" style="font-size: 0.72rem;">ID: {{ r.code }} • {{ r.department }}</div>
+                            </td>
+                            <td>
+                                {% if r.event_type == 'check_in' %}
+                                <span class="badge bg-success-subtle text-success border border-success-subtle"><i class="bi bi-box-arrow-in-right me-1"></i>Check-In</span>
+                                {% else %}
+                                <span class="badge bg-primary-subtle text-primary border border-primary-subtle"><i class="bi bi-box-arrow-right me-1"></i>Check-Out</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-muted">{{ r.time_display }}</td>
+                            <td>{{ r.site }}</td>
+                            <td>
+                                <span class="text-truncate d-inline-block" style="max-width: 200px;" title="{{ r.location_display }}">
+                                    <i class="bi bi-geo-alt me-1 text-secondary"></i>{{ r.location_display }}
+                                </span>
+                            </td>
+                            <td>
+                                {% if r.status == 'on_time' %}
+                                <span class="badge bg-success rounded-pill px-2 py-1">On-Time</span>
+                                {% elif r.status == 'late' %}
+                                <span class="badge bg-warning text-dark rounded-pill px-2 py-1">Late</span>
+                                {% elif r.status == 'early_leave' %}
+                                <span class="badge bg-warning text-dark rounded-pill px-2 py-1">Early Leave</span>
+                                {% elif r.status == 'overtime' %}
+                                <span class="badge bg-primary rounded-pill px-2 py-1">Overtime</span>
+                                {% elif r.status == 'flagged' %}
+                                <span class="badge bg-danger rounded-pill px-2 py-1">Flagged</span>
+                                {% else %}
+                                <span class="badge bg-secondary rounded-pill px-2 py-1">{{ r.status|upper }}</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if r.flagged %}
+                                <span class="text-danger small" title="{{ r.flag_reason }}">
+                                    <i class="bi bi-flag-fill me-1"></i>{{ r.flag_reason|truncate(35) }}
+                                </span>
+                                {% else %}
+                                <span class="text-success small"><i class="bi bi-check2-all me-1"></i>Verified</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="7" class="text-center py-4 text-muted">
+                                No attendance records found for your team within this selection.
+                            </td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,108 @@
+{% extends "admin/base_admin.html" %}
+{% block title %}Employee Roster & Governance | GeoFace Admin{% endblock %}
+{% block page_title %}Employee Management & Consent{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-3">
+    <div>
+        <h4 class="fw-bold text-dark mb-1">Workforce Roster & Biometric Governance</h4>
+        <p class="text-muted small mb-0">Manage roles, multi-site assignments, shifts, explicit biometric consent records, and offboarding purges</p>
+    </div>
+    <a href="/admin/enroll" class="btn btn-primary rounded-pill px-4 fw-semibold shadow-sm">
+        <i class="bi bi-person-plus-fill me-1"></i> Enroll New Employee
+    </a>
+</div>
+
+<!-- Employees Table -->
+<div class="card border-0 shadow-sm rounded-4 overflow-hidden bg-white mb-4">
+    <div class="card-header bg-white border-0 py-3 px-4 d-flex justify-content-between align-items-center">
+        <h6 class="fw-bold mb-0 text-dark"><i class="bi bi-people-fill text-primary me-2"></i>Active & Offboarded Personnel</h6>
+        <span class="badge bg-light text-secondary border">{{ employees|length }} staff</span>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0" style="font-size: 0.88rem;">
+            <thead class="table-light text-secondary">
+                <tr>
+                    <th class="ps-4">Employee</th>
+                    <th>Role</th>
+                    <th>Department</th>
+                    <th>Assigned Site</th>
+                    <th>Assigned Shift</th>
+                    <th>Reporting Manager</th>
+                    <th>Biometric Consent</th>
+                    <th>Status</th>
+                    <th class="text-end pe-4">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% if employees %}
+                    {% for emp in employees %}
+                    <tr class="{% if not emp.active %}bg-light text-muted{% endif %}">
+                        <td class="ps-4">
+                            <div class="d-flex align-items-center gap-2">
+                                <img src="https://ui-avatars.com/api/?name={{ emp.name|urlencode }}&background=6366f1&color=fff&rounded=true" style="width: 32px; height: 32px;" alt="">
+                                <div>
+                                    <div class="fw-bold text-dark">{{ emp.name }}</div>
+                                    <div class="text-muted" style="font-size: 0.72rem;">ID: {{ emp.employee_code }} • {{ emp.email or 'No email' }}</div>
+                                </div>
+                            </div>
+                        </td>
+                        <td>
+                            {% if emp.role == 'admin' %}
+                            <span class="badge bg-danger rounded-pill px-2 py-1">Admin</span>
+                            {% elif emp.role == 'manager' %}
+                            <span class="badge bg-warning text-dark rounded-pill px-2 py-1">Manager</span>
+                            {% else %}
+                            <span class="badge bg-secondary rounded-pill px-2 py-1">Employee</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ emp.department_name or 'General' }}</td>
+                        <td>{{ emp.site_name or 'Headquarters' }}</td>
+                        <td>{{ emp.shift_name or 'General Shift' }}</td>
+                        <td>{{ emp.manager_name or 'Direct to HR' }}</td>
+                        <td>
+                            {% if emp.biometric_consent %}
+                            <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill px-2 py-1" title="Consented: {{ emp.consent_display }}">
+                                <i class="bi bi-shield-check me-1"></i>Consented
+                            </span>
+                            {% else %}
+                            <span class="badge bg-danger-subtle text-danger border border-danger-subtle rounded-pill px-2 py-1">
+                                <i class="bi bi-shield-x me-1"></i>Missing Consent
+                            </span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if emp.active %}
+                            <span class="badge bg-success rounded-pill px-2 py-1">Active</span>
+                            {% else %}
+                            <span class="badge bg-secondary rounded-pill px-2 py-1">Offboarded</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-end pe-4">
+                            <div class="btn-group btn-group-sm">
+                                <!-- Deactivate / Reactivate -->
+                                <form method="POST" action="/admin/employees/{{ emp.id }}/toggle-active" class="d-inline" onsubmit="return confirm('Change active status for this employee?');">
+                                    <button type="submit" class="btn btn-sm {% if emp.active %}btn-outline-warning{% else %}btn-outline-success{% endif %} rounded-start-pill" title="{% if emp.active %}Offboard/Deactivate{% else %}Reactivate{% endif %}">
+                                        <i class="bi {% if emp.active %}bi-person-dash{% else %}bi-person-check{% endif %}"></i>
+                                    </button>
+                                </form>
+                                <!-- Purge Biometrics -->
+                                <form method="POST" action="/admin/employees/{{ emp.id }}/purge-biometrics" class="d-inline" onsubmit="return confirm('Permanently purge reference photos and deep embeddings for this employee (Compliance Right-to-be-Forgotten)?');">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger rounded-end-pill" title="Purge Biometrics (GDPR/DPDP)">
+                                        <i class="bi bi-fingerprint"></i>
+                                    </button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr>
+                        <td colspan="9" class="text-center py-4 text-muted">No employees registered yet.</td>
+                    </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

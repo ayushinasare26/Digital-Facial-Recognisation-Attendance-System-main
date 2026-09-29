@@ -1,0 +1,158 @@
+{% extends "admin/base_admin.html" %}
+{% block title %}Record #{{ record.id }} Verification Evidence | GeoFace Admin{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
+    <div>
+        <a href="/admin/attendance" class="text-decoration-none small text-muted mb-1 d-inline-block">
+            <i class="bi bi-arrow-left me-1"></i> Back to Attendance Records
+        </a>
+        <h4 class="fw-bold mb-0 text-dark">Verification Evidence & Audit Details</h4>
+        <span class="text-muted small">Record #{{ record.id }} &bull; {{ record.time_display }}</span>
+    </div>
+    <div class="d-flex gap-2">
+        <a href="/admin/employees" class="btn btn-outline-primary btn-sm rounded-pill px-3">
+            <i class="bi bi-people me-1"></i> View Employees
+        </a>
+    </div>
+</div>
+
+<div class="row g-4">
+    <!-- Proof Photo & Result Card -->
+    <div class="col-lg-5">
+        <div class="card border-0 shadow-sm rounded-4 p-4 bg-white h-100">
+            <!-- Employee Profile Header -->
+            <div class="d-flex align-items-center gap-3 p-3 bg-light rounded-4 mb-3 border">
+                <div class="position-relative">
+                    {% if record.profile_photo_url %}
+                    <img src="{{ record.profile_photo_url }}" alt="{{ record.name }}" class="rounded-circle border shadow-sm" style="width: 54px; height: 54px; object-fit: cover;" onerror="this.onerror=null; this.src='/static/img/avatar_placeholder.png';">
+                    {% else %}
+                    <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center fw-bold fs-5 shadow-sm" style="width: 54px; height: 54px;">
+                        {{ record.name[:2]|upper }}
+                    </div>
+                    {% endif %}
+                    <span class="position-absolute bottom-0 end-0 p-1 bg-success border border-white rounded-circle"></span>
+                </div>
+                <div>
+                    <div class="fw-bold text-dark fs-6">{{ record.name }}</div>
+                    <div class="d-flex align-items-center gap-2 mt-1">
+                        <span class="badge bg-secondary-subtle text-secondary border font-monospace px-2 py-1">{{ record.employee_code }}</span>
+                        <span class="text-muted small">{{ record.department_name or 'General' }}</span>
+                    </div>
+                </div>
+            </div>
+
+            <h6 class="fw-bold text-dark mb-3">Forensic Geotagged Proof</h6>
+            
+            {% if record.photo_url %}
+            <div class="text-center mb-3">
+                <img src="{{ record.photo_url }}" alt="Proof Photo" class="img-fluid rounded-4 shadow-sm border" style="max-height: 380px; width: 100%; object-fit: cover;" onerror="this.onerror=null; {% if record.profile_photo_url %}this.src='{{ record.profile_photo_url }}';{% else %}this.style.display='none';{% endif %}">
+                <div class="small text-muted mt-2">
+                    <i class="bi bi-shield-check text-success"></i> Tamper-evident biometric and location watermark
+                </div>
+            </div>
+            {% elif record.profile_photo_url %}
+            <div class="text-center mb-3">
+                <img src="{{ record.profile_photo_url }}" alt="Profile Photo" class="img-fluid rounded-4 shadow-sm border" style="max-height: 380px; width: 100%; object-fit: cover;">
+                <div class="small text-muted mt-2">
+                    <i class="bi bi-person-bounding-box text-primary"></i> Enrolled Reference Portrait
+                </div>
+            </div>
+            {% else %}
+            <div class="p-5 text-center bg-light rounded-4 text-muted mb-3">
+                <i class="bi bi-image fs-1 opacity-50"></i>
+                <p class="small mt-2 mb-0">No proof image stored for this entry.</p>
+            </div>
+            {% endif %}
+
+            <div class="border-top pt-3">
+                <div class="d-flex justify-content-between py-1 small">
+                    <span class="text-muted">Employee Name</span>
+                    <strong class="text-dark">{{ record.name }}</strong>
+                </div>
+                <div class="d-flex justify-content-between py-1 small">
+                    <span class="text-muted">Employee Code</span>
+                    <strong class="text-dark font-monospace">{{ record.employee_code }}</strong>
+                </div>
+                <div class="d-flex justify-content-between py-1 small">
+                    <span class="text-muted">Department</span>
+                    <span class="text-dark">{{ record.department_name or 'General' }}</span>
+                </div>
+                <div class="d-flex justify-content-between py-1 small">
+                    <span class="text-muted">Work Site</span>
+                    <span class="text-dark">{{ record.site_name or 'Remote & Field' }}</span>
+                </div>
+                <div class="d-flex justify-content-between py-1 small">
+                    <span class="text-muted">Match Confidence</span>
+                    <span class="badge bg-success-subtle text-success border border-success-subtle">{{ record.confidence_pct }}%</span>
+                </div>
+                <div class="d-flex justify-content-between py-1 small">
+                    <span class="text-muted">Punctuality / Status</span>
+                    {% if record.flagged %}
+                        <span class="badge bg-danger-subtle text-danger border border-danger-subtle rounded-pill px-2 py-1"><i class="bi bi-flag-fill me-1"></i>Flagged for Review</span>
+                    {% elif record.status in ['success', 'on_time'] %}
+                        <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill px-2 py-1"><i class="bi bi-check-circle-fill me-1"></i>Verified (On-Time)</span>
+                    {% elif record.status == 'late' %}
+                        <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle rounded-pill px-2 py-1"><i class="bi bi-clock me-1"></i>Late</span>
+                    {% elif record.status == 'overtime' %}
+                        <span class="badge bg-primary-subtle text-primary border border-primary-subtle rounded-pill px-2 py-1"><i class="bi bi-lightning-charge me-1"></i>Overtime</span>
+                    {% elif record.status == 'early_leave' %}
+                        <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle rounded-pill px-2 py-1"><i class="bi bi-box-arrow-left me-1"></i>Early Leave</span>
+                    {% else %}
+                        <span class="badge bg-success-subtle text-success border border-success-subtle rounded-pill px-2 py-1"><i class="bi bi-check-circle-fill me-1"></i>Verified</span>
+                    {% endif %}
+                </div>
+                <div class="d-flex justify-content-between py-1 small">
+                    <span class="text-muted">Resolved Address</span>
+                    <span class="text-end text-dark small" style="max-width: 220px;">{{ record.address or 'Location Unavailable' }}</span>
+                </div>
+                {% if record.flagged and record.flag_reason %}
+                <div class="d-flex justify-content-between py-1 small">
+                    <span class="text-danger fw-semibold">Audit Notice</span>
+                    <span class="text-end text-danger small" style="max-width: 220px;">{{ record.flag_reason }}</span>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- 9-Stage Pipeline Audit Breakdown -->
+    <div class="col-lg-7">
+        <div class="card border-0 shadow-sm rounded-4 p-4 bg-white h-100">
+            <h6 class="fw-bold text-dark mb-3">9-Stage Verification Pipeline Logs</h6>
+            
+            {% if record.stages %}
+            <ul class="list-group list-group-flush">
+                {% for st in record.stages %}
+                <li class="list-group-item px-0 py-3 border-0 border-bottom d-flex align-items-start gap-3">
+                    <div class="mt-1">
+                        {% if st.status in ['Completed', 'Passed'] %}
+                            <i class="bi bi-check-circle-fill text-success fs-5"></i>
+                        {% elif st.status == 'Failed' %}
+                            <i class="bi bi-x-circle-fill text-danger fs-5"></i>
+                        {% else %}
+                            <i class="bi bi-exclamation-circle-fill text-warning fs-5"></i>
+                        {% endif %}
+                    </div>
+                    <div class="flex-grow-1">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span class="fw-bold text-dark small">{{ st.stage }}</span>
+                            <span class="badge {% if st.status in ['Completed', 'Passed'] %}bg-success-subtle text-success{% else %}bg-warning-subtle text-warning{% endif %}">
+                                {{ st.status }}
+                            </span>
+                        </div>
+                        <p class="text-muted small mb-0 mt-1">{{ st.message }}</p>
+                    </div>
+                </li>
+                {% endfor %}
+            </ul>
+            {% else %}
+            <div class="p-4 text-center text-muted">
+                <i class="bi bi-journal-text fs-2 opacity-50 mb-2 d-block"></i>
+                <span class="small">No stage telemetry logged for this record.</span>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
