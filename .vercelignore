@@ -1,0 +1,39 @@
+# Vercel Serverless Function Exclusion Rules
+# Reduces function bundle size from >800MB to well below the 500MB AWS Lambda limit
+
+# Duplicate unzipped repository directory
+Digital-Facial-Recognisation-Attendance-System-main/
+
+# Legacy model weights and unused files
+model.yml
+model.pkl
+model.py
+
+# Raw training dataset and capture dumps
+dataset/
+attendance_photos/*.jpg
+attendance_photos/*.png
+
+# Development and testing
+tests/
+test_*.py
+benchmark.py
+seed_data.py
+migrations/
+
+# Git and environment files
+.git/
+.github/
+.env
+.env.*
+.venv/
+env/
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Documentation and scratch files
+*.md
+LICENSE

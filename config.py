@@ -51,10 +51,25 @@ def format_local_timestamp(iso_val, include_year=True):
 
 class Config:
     BASE_DIR = BASE_DIR
-    DB_PATH = os.environ.get("DATABASE_PATH") or str(BASE_DIR / "attendance.db")
-    DATASET_DIR = str(BASE_DIR / "dataset")
-    EMBEDDINGS_DIR = str(BASE_DIR / "embeddings")
-    ATTENDANCE_PHOTOS_DIR = str(BASE_DIR / "attendance_photos")
+    IS_VERCEL = bool(os.environ.get("VERCEL"))
+    
+    if IS_VERCEL:
+        tmp_db = "/tmp/attendance.db"
+        if not os.path.exists(tmp_db) and (BASE_DIR / "attendance.db").exists():
+            import shutil
+            try:
+                shutil.copyfile(str(BASE_DIR / "attendance.db"), tmp_db)
+            except Exception:
+                pass
+        DB_PATH = os.environ.get("DATABASE_PATH") or tmp_db
+        DATASET_DIR = "/tmp/dataset"
+        EMBEDDINGS_DIR = "/tmp/embeddings"
+        ATTENDANCE_PHOTOS_DIR = "/tmp/attendance_photos"
+    else:
+        DB_PATH = os.environ.get("DATABASE_PATH") or str(BASE_DIR / "attendance.db")
+        DATASET_DIR = str(BASE_DIR / "dataset")
+        EMBEDDINGS_DIR = str(BASE_DIR / "embeddings")
+        ATTENDANCE_PHOTOS_DIR = str(BASE_DIR / "attendance_photos")
     
     # Thresholds (dlib ResNet Euclidean distance)
     MATCH_THRESHOLD = float(os.environ.get("MATCH_THRESHOLD", 0.48))
@@ -72,4 +87,7 @@ class Config:
     ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "admin123")
 
 for folder in [Config.DATASET_DIR, Config.EMBEDDINGS_DIR, Config.ATTENDANCE_PHOTOS_DIR]:
-    os.makedirs(folder, exist_ok=True)
+    try:
+        os.makedirs(folder, exist_ok=True)
+    except OSError:
+        pass
