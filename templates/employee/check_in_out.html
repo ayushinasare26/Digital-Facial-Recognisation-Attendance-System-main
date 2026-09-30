@@ -346,6 +346,8 @@ actionBtn.addEventListener("click", async () => {
     // Liveness Challenge prompt
     const challengeBanner = document.getElementById("challengeBanner");
     const progress = document.getElementById("challengeProgress");
+    const instruction = document.getElementById("challengeInstruction");
+    if (instruction) instruction.innerText = "Look into camera • Blink or move naturally...";
     challengeBanner.style.display = "block";
 
     let livenessFrames = [];
@@ -355,13 +357,14 @@ actionBtn.addEventListener("click", async () => {
     const ctx = canvas.getContext("2d");
 
     // Capture burst frames for liveness
-    for (let i = 1; i <= 3; i++) {
-        progress.style.width = (i * 33) + "%";
+    const totalFrames = 4;
+    for (let i = 1; i <= totalFrames; i++) {
+        progress.style.width = Math.round((i / totalFrames) * 100) + "%";
         if (currentStream) {
             ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
             livenessFrames.push(canvas.toDataURL("image/jpeg", 0.85));
         }
-        await new Promise(r => setTimeout(r, 250));
+        await new Promise(r => setTimeout(r, 220));
     }
 
     let primaryPhoto = null;

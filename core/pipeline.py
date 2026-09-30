@@ -177,15 +177,17 @@ def run_attendance_pipeline(
         log_pipeline_stage(run_id, stage, status, message)
 
     # ---------------- STAGE 1: Photo Received (Intake) ----------------
-    if not primary_image_data and is_demo:
+    has_primary = primary_image_data is not None and not (isinstance(primary_image_data, (bytes, str, list)) and len(primary_image_data) == 0)
+    if not has_primary and is_demo:
         demo_folder = os.path.join(Config.DATASET_DIR, "29")
         if os.path.isdir(demo_folder):
             demo_files = [f for f in os.listdir(demo_folder) if f.lower().endswith(('.jpg', '.jpeg', '.png'))]
             if demo_files:
                 with open(os.path.join(demo_folder, demo_files[0]), "rb") as df:
                     primary_image_data = df.read()
+                    has_primary = True
 
-    if not primary_image_data:
+    if not has_primary:
         record_stage("Photo Received", "Failed", "No image data payload received from client")
         return {
             "success": False,
@@ -282,7 +284,7 @@ def run_attendance_pipeline(
     record_stage("Embedding Extraction", "Completed", "Extracted 128-dimensional deep ResNet embedding vector")
 
     # ---------------- STAGE 5: Embedding Match ----------------
-    match_res = match_face_embedding(embedding)
+    match_res = match_face_embedding(embedding, expected_id=expected_employee_id)
     if not match_res["matched"]:
         record_stage("Embedding Match", "Failed", match_res["reason"])
         return {
