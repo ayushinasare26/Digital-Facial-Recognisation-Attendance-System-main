@@ -132,51 +132,50 @@ def check_in_out():
         SELECT id, event_type, timestamp, latitude, longitude, address,
                distance_from_site_meters, within_geofence, confidence, status, flagged, flag_reason, geotagged_photo_path
         FROM attendance_events
-        WHERE employee_id = ? AND date(timestamp) = ?
+        WHERE employee_id = ?
         ORDER BY timestamp ASC
-    """, (emp_id, today_date))
-    events_today = [dict(r) for r in c.fetchall()]
+    """, (emp_id,))
+    all_events = [dict(r) for r in c.fetchall()]
+    events_today = [ev for ev in all_events if format_local_date(ev["timestamp"]) == today_date]
     
     # Fallback to legacy attendance table if attendance_events is empty
-    if not events_today:
+    if not events_today and not all_events:
         c.execute("""
             SELECT id, 'check_in' as event_type, timestamp, latitude, longitude, address,
                    confidence, status, geotagged_photo_path
             FROM attendance
-            WHERE student_id = ? AND date(timestamp) = ?
+            WHERE student_id = ?
             ORDER BY timestamp ASC
-        """, (emp_id, today_date))
-        events_today = [dict(r) for r in c.fetchall()]
+        """, (emp_id,))
+        legacy_events = [dict(r) for r in c.fetchall()]
+        events_today = [ev for ev in legacy_events if format_local_date(ev["timestamp"]) == today_date]
 
     conn.close()
 
-    # Determine current status and next recommended action
-    has_checkin = False
-    has_checkout = False
-    checkin_time_str = None
-    checkout_time_str = None
-    last_status = "Not checked in"
-    next_action = "check_in"
-
     for ev in events_today:
-        ev_type = ev.get("event_type", "check_in")
         ev["time_display"] = format_local_timestamp(ev["timestamp"], include_year=False)
-        if ev_type == "check_in":
-            has_checkin = True
-            checkin_time_str = ev["time_display"]
-        elif ev_type == "check_out":
-            has_checkout = True
-            checkout_time_str = ev["time_display"]
 
-    if has_checkin and not has_checkout:
-        last_status = f"Checked in at {checkin_time_str}"
-        next_action = "check_out"
-    elif has_checkin and has_checkout:
-        last_status = f"Completed workday (Checked out at {checkout_time_str})"
-        next_action = "check_in" # Allows re-entry or additional shift
-    else:
+    # Determine current status and next recommended action based on the latest event today
+    if not events_today:
+        has_checkin = False
+        has_checkout = False
         last_status = "Not checked in today"
         next_action = "check_in"
+    else:
+        last_event = events_today[-1]
+        last_event_type = last_event.get("event_type", "check_in")
+        last_event_time = last_event["time_display"]
+
+        if last_event_type == "check_in":
+            has_checkin = True
+            has_checkout = False
+            last_status = f"Checked in at {last_event_time}"
+            next_action = "check_out"
+        else: # check_out
+            has_checkin = True
+            has_checkout = True
+            last_status = f"Checked out at {last_event_time}"
+            next_action = "check_in"
 
     site_info = {
         "name": emp_data["site_name"] if emp_data and emp_data["site_name"] else "Headquarters",

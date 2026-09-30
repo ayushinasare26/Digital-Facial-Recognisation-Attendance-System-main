@@ -4,7 +4,7 @@ import uuid
 import datetime
 import numpy as np
 
-from config import Config, get_utc_now, get_utc_iso, get_local_now
+from config import Config, get_utc_now, get_utc_iso, get_local_now, format_local_date, format_local_timestamp
 from core.db import get_db_connection, get_setting
 from core.face_engine import (
     decode_image_bytes,
@@ -396,13 +396,14 @@ def run_attendance_pipeline(
         today_date = local_now.date().isoformat()
         c.execute("""
             SELECT timestamp FROM attendance_events
-            WHERE employee_id = ? AND event_type = 'check_in' AND date(timestamp) = ?
-            ORDER BY timestamp ASC LIMIT 1
-        """, (student_id, today_date))
-        check_in_row = c.fetchone()
+            WHERE employee_id = ? AND event_type = 'check_in'
+            ORDER BY timestamp DESC
+        """, (student_id,))
+        checkin_rows = [r["timestamp"] for r in c.fetchall() if format_local_date(r["timestamp"]) == today_date]
         conn.close()
 
-        check_in_ts = check_in_row["timestamp"] if check_in_row else None
+        # Use the latest check-in of the current active session
+        check_in_ts = checkin_rows[0] if checkin_rows else None
         hours_res = calculate_shift_hours(check_in_ts, now_dt, assigned_shift)
         event_status = hours_res["status"]
         hours_worked = hours_res.get("regular_hours", 0.0)

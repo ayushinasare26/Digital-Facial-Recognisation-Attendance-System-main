@@ -10,8 +10,8 @@
                 <div class="card-body p-4 text-white">
                     <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
                         <div class="d-flex align-items-center gap-3">
-                            <div class="rounded-circle p-3 text-white d-flex align-items-center justify-content-center shadow" style="background: {% if 'Checked in' in current_status %}#10b981{% elif 'Completed' in current_status %}#3b82f6{% else %}#64748b{% endif %}; width: 56px; height: 56px; font-size: 1.6rem;">
-                                <i class="bi {% if 'Checked in' in current_status %}bi-check-circle-fill{% elif 'Completed' in current_status %}bi-award-fill{% else %}bi-clock-history{% endif %}"></i>
+                            <div id="currentStatusIconWrap" class="rounded-circle p-3 text-white d-flex align-items-center justify-content-center shadow" style="background: {% if 'Checked in' in current_status %}#10b981{% elif 'Checked out' in current_status or 'Completed' in current_status %}#3b82f6{% else %}#64748b{% endif %}; width: 56px; height: 56px; font-size: 1.6rem;">
+                                <i id="currentStatusIcon" class="bi {% if 'Checked in' in current_status %}bi-check-circle-fill{% elif 'Checked out' in current_status or 'Completed' in current_status %}bi-door-closed-fill{% else %}bi-clock-history{% endif %}"></i>
                             </div>
                             <div>
                                 <span class="badge text-uppercase px-2 py-1 mb-1" style="background: rgba(255,255,255,0.15); font-size: 0.72rem; letter-spacing: 0.05em;">Current Workforce Status</span>
@@ -24,8 +24,13 @@
                             </div>
                         </div>
 
-                        <!-- Action Recommendation & Mode -->
-                        <div class="d-flex align-items-center gap-2">
+                        <!-- Action Recommendation, Live Clock & Mode -->
+                        <div class="d-flex align-items-center gap-2 flex-wrap">
+                            <div class="bg-dark bg-opacity-50 px-3 py-2 rounded-pill border border-secondary border-opacity-25 text-white d-flex align-items-center gap-2 shadow-sm" title="Real-time Accurate Clock">
+                                <i class="bi bi-clock-history text-info"></i>
+                                <span id="liveClock" class="fw-bold font-monospace small">--:--:--</span>
+                                <span class="badge bg-secondary-subtle text-light" style="font-size: 0.65rem;">IST</span>
+                            </div>
                             <div class="form-check form-switch bg-dark bg-opacity-50 px-3 py-2 rounded-pill border border-secondary border-opacity-25 d-flex align-items-center gap-2 text-white">
                                 <input class="form-check-input ms-0 me-2" type="checkbox" id="demoModeToggle">
                                 <label class="form-check-label small fw-semibold text-light mb-0" for="demoModeToggle">
@@ -80,15 +85,27 @@
                     </div>
                 </div>
 
+                <!-- Segmented Action Mode Switcher -->
+                <div class="d-flex justify-content-center mt-4 mb-2">
+                    <div class="btn-group p-1 bg-light rounded-pill border shadow-sm" role="group" aria-label="Attendance Mode">
+                        <button type="button" id="modeCheckInBtn" class="btn btn-sm rounded-pill px-3 fw-semibold transition-all {% if next_action == 'check_in' %}btn-success text-white shadow-sm{% else %}text-secondary{% endif %}">
+                            <i class="bi bi-box-arrow-in-right me-1"></i> Check In
+                        </button>
+                        <button type="button" id="modeCheckOutBtn" class="btn btn-sm rounded-pill px-3 fw-semibold transition-all {% if next_action == 'check_out' %}btn-danger text-white shadow-sm{% else %}text-secondary{% endif %}">
+                            <i class="bi bi-box-arrow-right me-1"></i> Check Out
+                        </button>
+                    </div>
+                </div>
+
                 <!-- Interactive Action Toggle Controls -->
-                <div class="d-flex flex-wrap justify-content-center gap-3 mt-4">
+                <div class="d-flex flex-wrap justify-content-center gap-3 mt-2">
                     <button id="startCamBtn" class="btn btn-outline-secondary px-4 rounded-pill fw-semibold shadow-sm">
                         <i class="bi bi-camera-video me-1"></i> Start Camera
                     </button>
 
                     <!-- Toggle Button between Check-In and Check-Out -->
-                    <button id="actionBtn" class="btn btn-lg px-4 rounded-pill fw-bold shadow" style="{% if next_action == 'check_out' %}background:#dc2626; border-color:#dc2626; color:white;{% else %}background:#059669; border-color:#059669; color:white;{% endif %}" disabled>
-                        <i class="bi {% if next_action == 'check_out' %}bi-box-arrow-right{% else %}bi-box-arrow-in-right{% endif %} me-2"></i>
+                    <button id="actionBtn" class="btn btn-lg px-4 rounded-pill fw-bold shadow transition-all" style="{% if next_action == 'check_out' %}background:#dc2626; border-color:#dc2626; color:white;{% else %}background:#059669; border-color:#059669; color:white;{% endif %}" disabled>
+                        <i class="bi {% if next_action == 'check_out' %}bi-box-arrow-right{% else %}bi-box-arrow-in-right{% endif %} me-2" id="actionBtnIcon"></i>
                         <span id="actionBtnText">{% if next_action == 'check_out' %}Check Out Now{% else %}Check In Now{% endif %}</span>
                     </button>
 
@@ -99,7 +116,7 @@
 
                 <div class="mt-3 text-center">
                     <span class="text-muted small">
-                        Event Mode: <span class="badge bg-secondary-subtle text-secondary" id="eventModeBadge">{{ next_action|replace('_', ' ')|title }}</span>
+                        Event Mode: <span class="badge {% if next_action == 'check_out' %}bg-danger-subtle text-danger{% else %}bg-success-subtle text-success{% endif %}" id="eventModeBadge">{% if next_action == 'check_out' %}Check Out{% else %}Check In{% endif %}</span>
                         • Site Radius: <strong>{{ site.geofence_radius_meters|int }}m</strong>
                         {% if not site.geofencing_enabled %}<span class="badge bg-info-subtle text-info ms-1">No Geofence Required</span>{% endif %}
                     </span>
@@ -250,6 +267,68 @@ const siteCoords = {
     enabled: {{ 'true' if site.geofencing_enabled else 'false' }}
 };
 
+// Live real-time clock for accurate timing feedback
+function updateLiveClock() {
+    const now = new Date();
+    const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
+    const clockEl = document.getElementById("liveClock");
+    if (clockEl) clockEl.innerText = timeStr;
+}
+setInterval(updateLiveClock, 1000);
+updateLiveClock();
+
+// Mode switcher: Check In vs Check Out
+function setActionMode(mode) {
+    currentAction = mode;
+    const actionBtn = document.getElementById("actionBtn");
+    const actionBtnText = document.getElementById("actionBtnText");
+    const actionBtnIcon = document.getElementById("actionBtnIcon");
+    const badge = document.getElementById("eventModeBadge");
+    const modeIn = document.getElementById("modeCheckInBtn");
+    const modeOut = document.getElementById("modeCheckOutBtn");
+
+    if (mode === "check_out") {
+        if (actionBtn) {
+            actionBtn.style.background = "#dc2626";
+            actionBtn.style.borderColor = "#dc2626";
+            actionBtn.style.color = "white";
+        }
+        if (actionBtnText) actionBtnText.innerText = "Check Out Now";
+        if (actionBtnIcon) actionBtnIcon.className = "bi bi-box-arrow-right me-2";
+        if (badge) {
+            badge.innerText = "Check Out";
+            badge.className = "badge bg-danger-subtle text-danger";
+        }
+        if (modeIn) modeIn.className = "btn btn-sm rounded-pill px-3 fw-semibold text-secondary";
+        if (modeOut) modeOut.className = "btn btn-sm rounded-pill px-3 fw-semibold btn-danger text-white shadow-sm";
+    } else {
+        if (actionBtn) {
+            actionBtn.style.background = "#059669";
+            actionBtn.style.borderColor = "#059669";
+            actionBtn.style.color = "white";
+        }
+        if (actionBtnText) actionBtnText.innerText = "Check In Now";
+        if (actionBtnIcon) actionBtnIcon.className = "bi bi-box-arrow-in-right me-2";
+        if (badge) {
+            badge.innerText = "Check In";
+            badge.className = "badge bg-success-subtle text-success";
+        }
+        if (modeIn) modeIn.className = "btn btn-sm rounded-pill px-3 fw-semibold btn-success text-white shadow-sm";
+        if (modeOut) modeOut.className = "btn btn-sm rounded-pill px-3 fw-semibold text-secondary";
+    }
+}
+
+document.getElementById("modeCheckInBtn")?.addEventListener("click", () => setActionMode("check_in"));
+document.getElementById("modeCheckOutBtn")?.addEventListener("click", () => setActionMode("check_out"));
+
+// Reload page when confirmation modal is dismissed
+const confirmModalEl = document.getElementById("confirmationModal");
+if (confirmModalEl) {
+    confirmModalEl.addEventListener("hidden.bs.modal", () => {
+        window.location.reload();
+    });
+}
+
 // Haversine client-side distance calculator
 function calculateHaversine(lat1, lon1, lat2, lon2) {
     if (!lat1 || !lon1 || !lat2 || !lon2) return null;
@@ -398,12 +477,11 @@ actionBtn.addEventListener("click", async () => {
 
         if (data.success) {
             // Show Confirmation Modal
-            const modalEl = document.getElementById("confirmationModal");
-            const modal = new bootstrap.Modal(modalEl);
+            const modal = new bootstrap.Modal(confirmModalEl);
 
             const isOut = currentAction === "check_out";
             document.getElementById("confirmModalTitle").innerText = isOut ? "Check-Out Confirmed" : "Check-In Confirmed";
-            document.getElementById("modalHeader").style.background = isOut ? "linear-gradient(135deg, #2563eb 0%, #3b82f6 100%)" : "linear-gradient(135deg, #059669 0%, #10b981 100%)";
+            document.getElementById("modalHeader").style.background = isOut ? "linear-gradient(135deg, #dc2626 0%, #ef4444 100%)" : "linear-gradient(135deg, #059669 0%, #10b981 100%)";
             document.getElementById("confirmTime").innerText = data.timestamp_display || new Date().toLocaleTimeString();
             document.getElementById("confirmAddress").innerText = data.address || "Location Verified";
             document.getElementById("confirmDistance").innerText = data.distance_from_site_meters !== null && data.distance_from_site_meters !== undefined ? `${Math.round(data.distance_from_site_meters)}m` : "On Site";
@@ -427,6 +505,26 @@ actionBtn.addEventListener("click", async () => {
                 const photo = document.getElementById("confirmPhoto");
                 photo.src = data.photo_url;
                 photo.style.display = "inline-block";
+            }
+
+            // Immediately switch next action mode on UI
+            const nextMode = isOut ? "check_in" : "check_out";
+            setActionMode(nextMode);
+
+            // Update workforce status banner immediately
+            const statusEl = document.getElementById("currentStatusText");
+            const statusIconWrap = document.getElementById("currentStatusIconWrap");
+            const statusIcon = document.getElementById("currentStatusIcon");
+            if (statusEl) {
+                if (isOut) {
+                    statusEl.innerText = `Checked out at ${data.timestamp_display || new Date().toLocaleTimeString()}`;
+                    if (statusIconWrap) statusIconWrap.style.background = "#3b82f6";
+                    if (statusIcon) statusIcon.className = "bi bi-door-closed-fill";
+                } else {
+                    statusEl.innerText = `Checked in at ${data.timestamp_display || new Date().toLocaleTimeString()}`;
+                    if (statusIconWrap) statusIconWrap.style.background = "#10b981";
+                    if (statusIcon) statusIcon.className = "bi bi-check-circle-fill";
+                }
             }
 
             modal.show();

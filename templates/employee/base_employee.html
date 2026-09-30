@@ -87,8 +87,9 @@
                             <div class="text-muted" style="font-size: 0.72rem;">ID: {{ session.get('employee_code', '—') }} • {{ session.get('department_name', 'General') }}</div>
                         </div>
                     </div>
-                    <a href="/employee/logout" class="btn btn-outline-danger btn-sm rounded-pill px-3" title="Sign Out">
+                    <a href="/employee/logout" class="btn btn-outline-danger btn-sm rounded-pill px-3 d-flex align-items-center gap-1 shadow-sm" title="Sign Out of Portal">
                         <i class="bi bi-box-arrow-right"></i>
+                        <span class="d-none d-sm-inline fw-semibold small">Sign Out</span>
                     </a>
                 </div>
             </div>
