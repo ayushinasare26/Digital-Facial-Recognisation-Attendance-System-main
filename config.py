@@ -10,6 +10,26 @@ if env_path.exists():
 else:
     load_dotenv()
 
+try:
+    import zoneinfo
+except ImportError:
+    from backports import zoneinfo
+
+def get_app_timezone():
+    """
+    Returns the target application timezone.
+    Configurable via APP_TIMEZONE or TIMEZONE environment variables.
+    Defaults to 'Asia/Kolkata' (IST, UTC+5:30) for Mumbai Enterprise site.
+    """
+    tz_str = os.environ.get("APP_TIMEZONE") or os.environ.get("TIMEZONE") or "Asia/Kolkata"
+    try:
+        return zoneinfo.ZoneInfo(tz_str)
+    except Exception:
+        try:
+            return datetime.timezone(datetime.timedelta(hours=5, minutes=30))
+        except Exception:
+            return datetime.timezone.utc
+
 def get_utc_now():
     """Returns current timezone-aware UTC datetime."""
     return datetime.datetime.now(datetime.timezone.utc)
@@ -19,13 +39,13 @@ def get_utc_iso():
     return get_utc_now().isoformat()
 
 def get_local_now():
-    """Returns current local datetime on the host system."""
-    return datetime.datetime.now().astimezone()
+    """Returns current real local datetime in the configured application timezone."""
+    return datetime.datetime.now(get_app_timezone())
 
 def format_local_timestamp(iso_val, include_year=True):
     """
     Converts any stored UTC ISO string or timestamp into the actual real
-    local date and time of the user/system (e.g. 'Sep 27, 2026, 11:10 PM').
+    local date and time in the configured application timezone (e.g. 'Sep 30, 2026 - 11:16 AM').
     """
     if not iso_val:
         return "—"
@@ -42,12 +62,37 @@ def format_local_timestamp(iso_val, include_year=True):
             # Assume stored naive timestamp was UTC
             dt = dt.replace(tzinfo=datetime.timezone.utc)
 
-        local_dt = dt.astimezone()
+        app_tz = get_app_timezone()
+        local_dt = dt.astimezone(app_tz)
         if include_year:
             return local_dt.strftime("%b %d, %Y - %I:%M %p")
         return local_dt.strftime("%b %d - %I:%M %p")
     except Exception:
         return str(iso_val)
+
+def format_local_date(iso_val):
+    """
+    Converts any stored UTC ISO string or timestamp into YYYY-MM-DD date
+    in the configured application timezone.
+    """
+    if not iso_val:
+        return ""
+    try:
+        if isinstance(iso_val, str):
+            clean_str = iso_val.replace("Z", "+00:00")
+            dt = datetime.datetime.fromisoformat(clean_str)
+        elif isinstance(iso_val, datetime.datetime):
+            dt = iso_val
+        else:
+            return str(iso_val)[:10]
+
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=datetime.timezone.utc)
+
+        app_tz = get_app_timezone()
+        return dt.astimezone(app_tz).strftime("%Y-%m-%d")
+    except Exception:
+        return str(iso_val)[:10]
 
 def is_dir_writable(path):
     try:

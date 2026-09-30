@@ -23,7 +23,7 @@ from core.auth import (
 )
 from core.pipeline import run_attendance_pipeline
 from core.shift_engine import calculate_shift_hours, evaluate_check_in, evaluate_check_out
-from config import Config, get_utc_now, get_local_now, format_local_timestamp
+from config import Config, get_utc_now, get_local_now, format_local_timestamp, format_local_date
 
 @employee_bp.route("/login", methods=["GET", "POST"])
 def login():
@@ -400,10 +400,7 @@ def my_attendance():
     days_map = {}
     for ev in events:
         dt_val = ev["timestamp"]
-        try:
-            day_key = dt_val.split("T")[0]
-        except Exception:
-            day_key = dt_val[:10]
+        day_key = format_local_date(dt_val) or dt_val[:10]
 
         if day_key not in days_map:
             days_map[day_key] = {"check_ins": [], "check_outs": []}

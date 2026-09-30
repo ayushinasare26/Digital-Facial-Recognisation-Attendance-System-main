@@ -29,14 +29,16 @@ def parse_iso_datetime(dt_val) -> Optional[datetime.datetime]:
     except Exception:
         return None
 
+from config import get_app_timezone
+
 def normalize_datetimes_to_naive(dt1: datetime.datetime, dt2: Optional[datetime.datetime] = None):
-    """Normalizes one or two datetimes to comparable naive datetimes (in local or UTC)."""
+    """Normalizes one or two datetimes to comparable naive datetimes in the application timezone."""
+    app_tz = get_app_timezone()
     if dt1.tzinfo is not None:
-        # Convert to local naive
-        dt1 = dt1.astimezone().replace(tzinfo=None)
+        dt1 = dt1.astimezone(app_tz).replace(tzinfo=None)
     if dt2 is not None:
         if dt2.tzinfo is not None:
-            dt2 = dt2.astimezone().replace(tzinfo=None)
+            dt2 = dt2.astimezone(app_tz).replace(tzinfo=None)
         return dt1, dt2
     return dt1
 
