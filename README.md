@@ -41,6 +41,16 @@ The system enforces strict multi-tenant role isolation across three purpose-buil
 - **Data Minimization & Coordinate Obfuscation**: Managers can view attendance status and city/neighborhood locations, but precise lat/long coordinates and raw biometric images are strictly restricted to administrators and the individual employee.
 - **Tamper-Evident Audit Logging (`audit_logs`)**: Centralized logging tracks administrative logins, site creations, shift modifications, employee enrollments, biometric purges, and payroll exports.
 
+### 5. Admin-Controlled Attendance Method Policy (`core/db.py`)
+- **Two-Tier Inheritance Architecture**:
+  - **Company-Wide Global Default** (`settings.global_attendance_policy`): Sets the baseline policy across all workforce locations (`face_only`, `manual_only`, or `both`).
+  - **Per-Site Overrides** (`sites.attendance_policy`): Allows physical offices (e.g. Corporate HQ) to mandate strict facial recognition while remote hubs or field branches permit manual check-ins. If unset (`NULL` / `"inherit"`), the site seamlessly inherits the global default. Changing the global policy updates all inheriting sites while preserving explicit overrides.
+- **Server-Side Enforcement**: Bypassing the client UI is impossible — the check-in and check-out submission endpoints evaluate `get_effective_attendance_policy(site_id)` and immediately reject prohibited attendance methods with HTTP 403 Forbidden.
+- **Dynamic Portal UX**: When only one method is permitted (`face_only` or `manual_only`), the Employee Portal completely hides the method switcher cards to avoid confusing employees with disabled controls, automatically presenting the required workflow with an active policy badge.
+- **Mid-Session Policy Invalidation**: If an administrator changes a site policy while staff have the portal open, the next submission verifies fresh policy state and instructs the employee to refresh rather than failing ambiguously.
+- **Biometric Enrollment Guard**: When `face_only` is active, employees without registered facial embeddings are surfaced an enrollment requirement alert advising them to contact administration.
+- **Tamper-Evident Audit Trail**: Every policy change (who modified it, from what, to what, when) is automatically recorded in `audit_logs` for compliance auditing.
+
 ---
 
 ## 🗄️ Database Domain Model
@@ -54,6 +64,7 @@ sites
 ├── longitude (REAL)
 ├── geofence_radius_meters (REAL DEFAULT 200.0)
 ├── geofencing_enabled (INTEGER DEFAULT 1)
+├── attendance_policy (TEXT DEFAULT NULL: 'face_only', 'manual_only', 'both', or NULL)
 └── created_at (TEXT)
 
 shifts
@@ -157,25 +168,22 @@ enterprise-attendance-system/
 │   ├── manager/
 │   │   ├── __init__.py
 │   │   └── routes.py               # Team-scoped dashboard, logs, & correction queue
-│   ├── admin/
+│   └── admin/
 │   │   ├── __init__.py
 │   │   └── routes.py               # Sites, shifts, employee roster, review queue, payroll CSV
-│   └── portal/
-│       ├── __init__.py
-│       └── routes.py               # Legacy compatibility blueprint
 ├── migrations/
 │   ├── 001_initial_schema.sql
 │   ├── 002_add_roles_and_review_fields.sql
 │   └── 003_add_sites_shifts_departments.sql
 ├── dataset/                        # Enrolled face images partitioned by employee ID
 ├── attendance_photos/              # Forensic watermarked proof-of-attendance photos
+│                                   # (Note: Current naming standard: {id}_{event_type}_{safe_timestamp}.jpg; historical records predate this)
 ├── scripts/
 │   └── seed_enterprise_data.py    # Multi-site enterprise seeder (sites, shifts, employees, cycles)
 ├── static/
 │   ├── css/style.css
 │   └── js/
-│       ├── employee/camera_checkin.js
-│       └── admin/dashboard.js
+│       └── admin/                  # Admin portal scripts (visualizations, enrollment)
 ├── templates/
 │   ├── employee/
 │   │   ├── base_employee.html

@@ -453,8 +453,8 @@ def run_attendance_pipeline(
                 employee_id, event_type, timestamp, latitude, longitude,
                 address, site_id, distance_from_site_meters, within_geofence,
                 confidence, liveness_passed, geotagged_photo_path,
-                status, flagged, flag_reason, created_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                status, flagged, flag_reason, attendance_method, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             student_id,
             event_type,
@@ -471,6 +471,7 @@ def run_attendance_pipeline(
             event_status,
             1 if is_flagged else 0,
             flag_reason,
+            "face",
             iso_timestamp
         ))
         event_id = c.lastrowid
@@ -482,8 +483,8 @@ def run_attendance_pipeline(
                 student_id, name, timestamp, latitude, longitude,
                 address, confidence, liveness_passed, geotagged_photo_path,
                 status, event_type, site_id, distance_from_site_meters,
-                within_geofence, flagged, flag_reason
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                within_geofence, flagged, flag_reason, attendance_method
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             student_id,
             student_name,
@@ -500,7 +501,8 @@ def run_attendance_pipeline(
             dist_meters,
             1 if within_geofence else 0,
             1 if is_flagged else 0,
-            flag_reason
+            flag_reason,
+            "face"
         ))
         legacy_att_id = c.lastrowid
         conn.commit()
@@ -531,6 +533,7 @@ def run_attendance_pipeline(
         "student_id": student_id,
         "student_name": student_name,
         "employee_name": student_name,
+        "attendance_method": "face",
         "event_type": event_type,
         "confidence": confidence,
         "liveness_passed": True,

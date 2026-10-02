@@ -16,7 +16,6 @@ from core.face_engine import load_embeddings_cache
 from blueprints.employee import employee_bp
 from blueprints.manager import manager_bp
 from blueprints.admin import admin_bp
-from blueprints.portal import portal_bp
 
 # Initialize Flask Application
 app = Flask(__name__, static_folder="static", template_folder="templates")
@@ -46,7 +45,6 @@ except Exception as _e:
 app.register_blueprint(employee_bp, url_prefix="/employee")
 app.register_blueprint(manager_bp, url_prefix="/manager")
 app.register_blueprint(admin_bp, url_prefix="/admin")
-app.register_blueprint(portal_bp, url_prefix="/portal")
 
 # ==========================================
 # Root & Entry Redirection

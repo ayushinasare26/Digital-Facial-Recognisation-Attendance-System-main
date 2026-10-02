@@ -56,14 +56,17 @@ class TestE2EPipeline(unittest.TestCase):
         self.assertIn("ID,Student ID,Name", content)
 
     def test_03_mark_attendance_demo_mode(self):
-        # Demo mode test with mock GPS & demo selfie (student 29)
+        # Demo mode test with mock GPS & demo selfie (student/employee 29)
         with self.client.session_transaction() as sess:
-            sess["role"] = "user"
+            sess["role"] = "employee"
+            sess["employee_id"] = 29
             sess["student_id"] = 29
+            sess["employee_name"] = "Aayushi"
             sess["student_name"] = "Aayushi"
+            sess["employee_code"] = "24070521203"
             sess["roll"] = "24070521203"
 
-        resp = self.client.post("/portal/mark-attendance", data={
+        resp = self.client.post("/employee/mark-attendance", data={
             "latitude": "19.0760",
             "longitude": "72.8777",
             "challenge_type": "blink",
@@ -91,13 +94,16 @@ class TestE2EPipeline(unittest.TestCase):
 
     def test_04_mark_attendance_duplicate_prevention(self):
         with self.client.session_transaction() as sess:
-            sess["role"] = "user"
+            sess["role"] = "employee"
+            sess["employee_id"] = 29
             sess["student_id"] = 29
+            sess["employee_name"] = "Aayushi"
             sess["student_name"] = "Aayushi"
+            sess["employee_code"] = "24070521203"
             sess["roll"] = "24070521203"
 
         # Immediate subsequent submission without bypass_cooldown should be blocked by cooldown
-        resp = self.client.post("/portal/mark-attendance", data={
+        resp = self.client.post("/employee/mark-attendance", data={
             "latitude": "19.0760",
             "longitude": "72.8777",
             "challenge_type": "blink",
@@ -111,13 +117,16 @@ class TestE2EPipeline(unittest.TestCase):
 
     def test_05_mark_attendance_location_denied_flags_record(self):
         with self.client.session_transaction() as sess:
-            sess["role"] = "user"
+            sess["role"] = "employee"
+            sess["employee_id"] = 29
             sess["student_id"] = 29
+            sess["employee_name"] = "Aayushi"
             sess["student_name"] = "Aayushi"
+            sess["employee_code"] = "24070521203"
             sess["roll"] = "24070521203"
 
         # Omitting coordinates flags the record as 'flagged' for review
-        resp = self.client.post("/portal/mark-attendance", data={
+        resp = self.client.post("/employee/mark-attendance", data={
             "challenge_type": "blink",
             "is_demo": "true",
             "bypass_cooldown": "true"

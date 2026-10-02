@@ -5,13 +5,242 @@
 <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
     <div>
         <h4 class="fw-bold mb-1 text-dark">Biometric Engine & Security Settings</h4>
-        <p class="text-muted small mb-0">Tune facial embedding distance thresholds, spoof sensitivity, and duplicate limits</p>
+        <p class="text-muted small mb-0">Tune facial embedding distance thresholds, spoof sensitivity, and attendance method policies</p>
+    </div>
+</div>
+
+<!-- Toast Container for Interactive Action Feedback -->
+<div class="toast-container position-fixed top-0 end-0 p-3" style="z-index: 1080;">
+    <div id="policyToast" class="toast align-items-center text-white bg-success border-0 shadow-lg rounded-4" role="alert" aria-live="assertive" aria-atomic="true">
+        <div class="d-flex">
+            <div class="toast-body d-flex align-items-center gap-2 py-3 px-3">
+                <i class="bi bi-check-circle-fill fs-5"></i>
+                <div>
+                    <strong class="d-block">Policy Updated Successfully</strong>
+                    <span id="toastMsg" class="small">Changes take effect immediately for all upcoming employee check-ins.</span>
+                </div>
+            </div>
+            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
+    </div>
+</div>
+
+<div class="row g-4 mb-4">
+    <!-- SECTION 1: ATTENDANCE METHOD POLICY (NEW) -->
+    <div class="col-12">
+        <div class="card border-0 shadow-sm rounded-4 p-4 bg-white">
+            <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2 border-bottom pb-3">
+                <div>
+                    <div class="d-flex align-items-center gap-2">
+                        <span class="p-2 rounded-3 bg-primary bg-opacity-10 text-primary">
+                            <i class="bi bi-shield-lock-fill fs-5"></i>
+                        </span>
+                        <div>
+                            <h5 class="fw-bold mb-0 text-dark">Attendance Method Policy</h5>
+                            <span class="text-muted small">Control which attendance modes are available to staff globally and configure per-site overrides</span>
+                        </div>
+                    </div>
+                </div>
+                <div>
+                    <button type="button" id="savePolicyBtn" class="btn btn-primary rounded-pill px-4 fw-semibold shadow-sm" style="background: var(--admin-primary); border-color: var(--admin-primary);">
+                        <i class="bi bi-save me-1"></i> Save Policy Changes
+                    </button>
+                </div>
+            </div>
+
+            <form id="attendancePolicyForm" method="POST" action="/admin/settings">
+                <!-- Part A: Global Default Policy -->
+                <div class="mb-4">
+                    <label class="form-label small fw-bold text-uppercase text-secondary mb-2" style="letter-spacing: 0.05em;">
+                        1. Company-Wide Global Policy (Default for all sites)
+                    </label>
+                    <p class="text-muted small mb-3">
+                        Sets the baseline policy across the entire workforce. Sites set to <em>"Inherit Global Default"</em> automatically follow this rule.
+                    </p>
+
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <label class="card h-100 p-3 rounded-4 border-2 transition-all cursor-pointer policy-card {% if global_attendance_policy == 'face_only' %}border-primary bg-primary bg-opacity-10{% else %}border-light-subtle bg-light{% endif %}" id="card_face_only">
+                                <div class="d-flex align-items-start gap-2">
+                                    <input class="form-check-input mt-1 global-policy-radio" type="radio" name="global_attendance_policy" id="global_face_only" value="face_only" {% if global_attendance_policy == 'face_only' %}checked{% endif %}>
+                                    <div>
+                                        <div class="fw-bold text-dark mb-1">
+                                            <i class="bi bi-camera-video-fill text-primary me-1"></i> Face Recognition Only
+                                        </div>
+                                        <span class="text-muted small d-block">
+                                            Mandates live camera scan & biometric liveness for all check-ins. Manual attendance is completely blocked.
+                                        </span>
+                                    </div>
+                                </div>
+                            </label>
+                        </div>
+
+                        <div class="col-md-4">
+                            <label class="card h-100 p-3 rounded-4 border-2 transition-all cursor-pointer policy-card {% if global_attendance_policy == 'manual_only' %}border-success bg-success bg-opacity-10{% else %}border-light-subtle bg-light{% endif %}" id="card_manual_only">
+                                <div class="d-flex align-items-start gap-2">
+                                    <input class="form-check-input mt-1 global-policy-radio" type="radio" name="global_attendance_policy" id="global_manual_only" value="manual_only" {% if global_attendance_policy == 'manual_only' %}checked{% endif %}>
+                                    <div>
+                                        <div class="fw-bold text-dark mb-1">
+                                            <i class="bi bi-pencil-square text-success me-1"></i> Manual Attendance Only
+                                        </div>
+                                        <span class="text-muted small d-block">
+                                            Authenticated via active login session without camera/face scanning. Facial biometric flow is bypassed.
+                                        </span>
+                                    </div>
+                                </div>
+                            </label>
+                        </div>
+
+                        <div class="col-md-4">
+                            <label class="card h-100 p-3 rounded-4 border-2 transition-all cursor-pointer policy-card {% if global_attendance_policy == 'both' or not global_attendance_policy %}border-info bg-info bg-opacity-10{% else %}border-light-subtle bg-light{% endif %}" id="card_both">
+                                <div class="d-flex align-items-start gap-2">
+                                    <input class="form-check-input mt-1 global-policy-radio" type="radio" name="global_attendance_policy" id="global_both" value="both" {% if global_attendance_policy == 'both' or not global_attendance_policy %}checked{% endif %}>
+                                    <div>
+                                        <div class="fw-bold text-dark mb-1">
+                                            <i class="bi bi-toggles text-info me-1"></i> Both (Employee Choice)
+                                        </div>
+                                        <span class="text-muted small d-block">
+                                            Allows staff to freely choose between Face Recognition and Manual Attendance on the Employee Portal.
+                                        </span>
+                                    </div>
+                                </div>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Part B: Per-Site Override Table -->
+                <div class="mb-4">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <label class="form-label small fw-bold text-uppercase text-secondary mb-0" style="letter-spacing: 0.05em;">
+                            2. Per-Site Override Configuration
+                        </label>
+                        <span class="badge bg-light text-secondary border">{{ sites_policies|length }} registered sites</span>
+                    </div>
+                    <p class="text-muted small mb-3">
+                        Optionally override the global policy for specific physical work sites (e.g. Headquarters requiring face recognition while remote hubs allow manual check-ins).
+                    </p>
+
+                    <div class="table-responsive rounded-4 border overflow-hidden">
+                        <table class="table table-hover align-middle mb-0" style="font-size: 0.88rem;">
+                            <thead class="table-light text-secondary">
+                                <tr>
+                                    <th class="ps-3 py-3" style="width: 32%;">Work Site Name & Address</th>
+                                    <th class="py-3" style="width: 14%;">Active Workforce</th>
+                                    <th class="py-3" style="width: 30%;">Site Policy Override</th>
+                                    <th class="py-3 text-end pe-3" style="width: 24%;">Effective Applied Policy</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% if sites_policies %}
+                                    {% for s in sites_policies %}
+                                    <tr data-site-id="{{ s.id }}">
+                                        <td class="ps-3">
+                                            <div class="fw-bold text-dark">{{ s.name }}</div>
+                                            <div class="text-muted small text-truncate" style="max-width: 320px;">{{ s.address or 'Address not specified' }}</div>
+                                        </td>
+                                        <td>
+                                            <span class="badge bg-light text-dark border">
+                                                <i class="bi bi-people-fill text-secondary me-1"></i>{{ s.employee_count }} staff
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <select name="site_policy_{{ s.id }}" class="form-select form-select-sm rounded-3 site-policy-select" data-site-id="{{ s.id }}">
+                                                <option value="inherit" {% if not s.override_policy %}selected{% endif %}>
+                                                    Inherit Global Default ({% if global_attendance_policy == 'face_only' %}Face Only{% elif global_attendance_policy == 'manual_only' %}Manual Only{% else %}Both{% endif %})
+                                                </option>
+                                                <option value="face_only" {% if s.override_policy == 'face_only' %}selected{% endif %}>
+                                                    Face Recognition Only
+                                                </option>
+                                                <option value="manual_only" {% if s.override_policy == 'manual_only' %}selected{% endif %}>
+                                                    Manual Attendance Only
+                                                </option>
+                                                <option value="both" {% if s.override_policy == 'both' %}selected{% endif %}>
+                                                    Both (Employee Choice)
+                                                </option>
+                                            </select>
+                                        </td>
+                                        <td class="text-end pe-3">
+                                            <span id="effective_badge_{{ s.id }}" class="badge {% if s.effective_policy == 'face_only' %}bg-primary-subtle text-primary border border-primary-subtle{% elif s.effective_policy == 'manual_only' %}bg-success-subtle text-success border border-success-subtle{% else %}bg-info-subtle text-info border border-info-subtle{% endif %} px-2 py-1">
+                                                {% if s.effective_policy == 'face_only' %}
+                                                    <i class="bi bi-camera-video me-1"></i>Face Only
+                                                {% elif s.effective_policy == 'manual_only' %}
+                                                    <i class="bi bi-pencil-square me-1"></i>Manual Only
+                                                {% else %}
+                                                    <i class="bi bi-toggles me-1"></i>Both Allowed
+                                                {% endif %}
+                                                {% if not s.override_policy %}
+                                                    <span class="text-muted ms-1 fw-normal">(Inherited)</span>
+                                                {% else %}
+                                                    <span class="text-secondary ms-1 fw-semibold">(Override)</span>
+                                                {% endif %}
+                                            </span>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                {% else %}
+                                    <tr>
+                                        <td colspan="4" class="text-center py-4 text-muted">No sites registered yet. Add sites in Sites & Geofencing.</td>
+                                    </tr>
+                                {% endif %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Part C: Effective Policy At-A-Glance Summary -->
+                <div class="p-3 bg-light rounded-4 border">
+                    <div class="d-flex flex-wrap justify-content-between align-items-center mb-2 gap-2">
+                        <span class="fw-bold small text-dark">
+                            <i class="bi bi-info-circle-fill text-primary me-1"></i>Effective Policy Summary: At A Glance
+                        </span>
+                        <span class="text-muted small">Updated in real-time as policies change</span>
+                    </div>
+                    <div class="row g-2 text-center" id="policySummaryCards">
+                        <div class="col-md-3">
+                            <div class="p-2 bg-white rounded-3 border">
+                                <span class="text-muted small d-block">Global Default</span>
+                                <strong id="summaryGlobalBadge" class="text-primary small text-uppercase">
+                                    {{ global_attendance_policy|replace('_', ' ') }}
+                                </strong>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="p-2 bg-white rounded-3 border">
+                                <span class="text-muted small d-block">Sites on Inherit</span>
+                                <strong id="summaryInheritCount" class="text-secondary small">
+                                    {{ sites_policies|rejectattr('override_policy')|list|length }} sites
+                                </strong>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="p-2 bg-white rounded-3 border">
+                                <span class="text-muted small d-block">Sites with Overrides</span>
+                                <strong id="summaryOverrideCount" class="text-dark small">
+                                    {{ sites_policies|selectattr('override_policy')|list|length }} sites
+                                </strong>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="p-2 bg-white rounded-3 border">
+                                <span class="text-muted small d-block">Enforcement Status</span>
+                                <strong class="text-success small"><i class="bi bi-shield-check me-1"></i>Active & Enforced</strong>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </form>
+        </div>
     </div>
 </div>
 
 <div class="row g-4">
+    <!-- SECTION 2: RECOGNITION ENGINE SETTINGS -->
     <div class="col-lg-8">
         <div class="card border-0 shadow-sm rounded-4 p-4 bg-white">
+            <h5 class="fw-bold mb-3 text-dark">
+                <i class="bi bi-cpu-fill text-primary me-2"></i>Recognition Thresholds & Cooldown
+            </h5>
             <form method="POST" action="/admin/settings">
                 <div class="row g-3 mb-4">
                     <div class="col-md-6">
@@ -51,17 +280,18 @@
                 </div>
 
                 <div class="d-flex justify-content-end">
-                    <button type="submit" class="btn btn-primary rounded-pill px-4 fw-semibold" style="background: var(--admin-primary); border-color: var(--admin-primary);">
-                        <i class="bi bi-save me-1"></i> Save Configuration
+                    <button type="submit" class="btn btn-outline-primary rounded-pill px-4 fw-semibold">
+                        <i class="bi bi-save me-1"></i> Save Engine Thresholds
                     </button>
                 </div>
             </form>
         </div>
     </div>
 
+    <!-- SECTION 3: ARCHITECTURE & SECURITY CARD -->
     <div class="col-lg-4">
         <div class="card border-0 shadow-sm rounded-4 p-4 bg-white h-100">
-            <h6 class="fw-bold text-dark mb-3">Model Architecture</h6>
+            <h6 class="fw-bold text-dark mb-3">Model Architecture & Security</h6>
             <div class="d-flex align-items-center gap-2 mb-2">
                 <i class="bi bi-cpu text-primary fs-5"></i>
                 <span class="fw-bold small text-dark">dlib ResNet-34 128-D Vector</span>
@@ -82,4 +312,145 @@
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Interactive Policy Card Styling & Radio Selection
+document.querySelectorAll(".global-policy-radio").forEach(radio => {
+    radio.addEventListener("change", function() {
+        document.querySelectorAll(".policy-card").forEach(c => {
+            c.classList.remove("border-primary", "bg-primary", "border-success", "bg-success", "border-info", "bg-info", "bg-opacity-10");
+            c.classList.add("border-light-subtle", "bg-light");
+        });
+        const card = document.getElementById("card_" + this.value);
+        if (card) {
+            card.classList.remove("border-light-subtle", "bg-light");
+            if (this.value === "face_only") card.classList.add("border-primary", "bg-primary", "bg-opacity-10");
+            else if (this.value === "manual_only") card.classList.add("border-success", "bg-success", "bg-opacity-10");
+            else card.classList.add("border-info", "bg-info", "bg-opacity-10");
+        }
+        updateSiteInheritLabels(this.value);
+        updateEffectiveBadges();
+    });
+});
+
+function updateSiteInheritLabels(globalPolicy) {
+    const policyName = globalPolicy === "face_only" ? "Face Only" : (globalPolicy === "manual_only" ? "Manual Only" : "Both");
+    document.querySelectorAll(".site-policy-select").forEach(sel => {
+        const inheritOpt = sel.querySelector('option[value="inherit"]');
+        if (inheritOpt) {
+            inheritOpt.innerText = `Inherit Global Default (${policyName})`;
+        }
+    });
+}
+
+function getSelectedGlobalPolicy() {
+    const checked = document.querySelector('input[name="global_attendance_policy"]:checked');
+    return checked ? checked.value : "both";
+}
+
+function updateEffectiveBadges() {
+    const globalPolicy = getSelectedGlobalPolicy();
+    let inheritCount = 0;
+    let overrideCount = 0;
+
+    document.querySelectorAll(".site-policy-select").forEach(sel => {
+        const siteId = sel.dataset.siteId;
+        const val = sel.value;
+        const badge = document.getElementById("effective_badge_" + siteId);
+        if (!badge) return;
+
+        const effective = (val === "inherit" || !val) ? globalPolicy : val;
+        const isInherited = (val === "inherit" || !val);
+
+        if (isInherited) inheritCount++;
+        else overrideCount++;
+
+        let badgeClass = "badge px-2 py-1 ";
+        let badgeHtml = "";
+
+        if (effective === "face_only") {
+            badgeClass += "bg-primary-subtle text-primary border border-primary-subtle";
+            badgeHtml = `<i class="bi bi-camera-video me-1"></i>Face Only`;
+        } else if (effective === "manual_only") {
+            badgeClass += "bg-success-subtle text-success border border-success-subtle";
+            badgeHtml = `<i class="bi bi-pencil-square me-1"></i>Manual Only`;
+        } else {
+            badgeClass += "bg-info-subtle text-info border border-info-subtle";
+            badgeHtml = `<i class="bi bi-toggles me-1"></i>Both Allowed`;
+        }
+
+        if (isInherited) {
+            badgeHtml += ` <span class="text-muted ms-1 fw-normal">(Inherited)</span>`;
+        } else {
+            badgeHtml += ` <span class="text-secondary ms-1 fw-semibold">(Override)</span>`;
+        }
+
+        badge.className = badgeClass;
+        badge.innerHTML = badgeHtml;
+    });
+
+    const summaryGlobal = document.getElementById("summaryGlobalBadge");
+    if (summaryGlobal) summaryGlobal.innerText = globalPolicy.replace('_', ' ');
+
+    const summaryInherit = document.getElementById("summaryInheritCount");
+    if (summaryInherit) summaryInherit.innerText = `${inheritCount} sites`;
+
+    const summaryOverride = document.getElementById("summaryOverrideCount");
+    if (summaryOverride) summaryOverride.innerText = `${overrideCount} sites`;
+}
+
+document.querySelectorAll(".site-policy-select").forEach(sel => {
+    sel.addEventListener("change", updateEffectiveBadges);
+});
+
+// Interactive AJAX Save with Toast Confirmation
+const savePolicyBtn = document.getElementById("savePolicyBtn");
+const policyToastEl = document.getElementById("policyToast");
+const policyToast = policyToastEl ? new bootstrap.Toast(policyToastEl, { delay: 4000 }) : null;
+
+savePolicyBtn?.addEventListener("click", async () => {
+    savePolicyBtn.disabled = true;
+    savePolicyBtn.innerHTML = `<span class="spinner-border spinner-border-sm me-1" role="status"></span> Saving...`;
+
+    const globalPolicy = getSelectedGlobalPolicy();
+    const siteOverrides = {};
+
+    document.querySelectorAll(".site-policy-select").forEach(sel => {
+        const siteId = sel.dataset.siteId;
+        siteOverrides[siteId] = sel.value;
+    });
+
+    try {
+        const res = await fetch("/admin/api/admin/settings/attendance-policy", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                global_attendance_policy: globalPolicy,
+                site_overrides: siteOverrides
+            })
+        });
+
+        const data = await res.json();
+        if (data.success) {
+            updateEffectiveBadges();
+            if (policyToast) {
+                document.getElementById("toastMsg").innerText = data.message || "Attendance policies saved successfully. Changes take effect immediately.";
+                policyToast.show();
+            }
+        } else {
+            alert("Failed to save policy: " + (data.error || "Unknown error"));
+        }
+    } catch (e) {
+        // Fallback to regular form submission if fetch fails
+        document.getElementById("attendancePolicyForm").submit();
+    } finally {
+        savePolicyBtn.disabled = false;
+        savePolicyBtn.innerHTML = `<i class="bi bi-save me-1"></i> Save Policy Changes`;
+    }
+});
+</script>
 {% endblock %}

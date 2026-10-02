@@ -103,7 +103,8 @@ def init_db(db_path=None):
             distance_from_site_meters REAL,
             within_geofence INTEGER DEFAULT 1,
             flagged INTEGER DEFAULT 0,
-            flag_reason TEXT
+            flag_reason TEXT,
+            attendance_method TEXT DEFAULT 'face'
         )
     """)
     
@@ -124,7 +125,8 @@ def init_db(db_path=None):
         ("distance_from_site_meters", "REAL"),
         ("within_geofence", "INTEGER DEFAULT 1"),
         ("flagged", "INTEGER DEFAULT 0"),
-        ("flag_reason", "TEXT")
+        ("flag_reason", "TEXT"),
+        ("attendance_method", "TEXT DEFAULT 'face'")
     ]
     for col_name, col_type in att_col_defs:
         if col_name not in existing_att_cols:
@@ -172,9 +174,18 @@ def init_db(db_path=None):
             longitude REAL NOT NULL,
             geofence_radius_meters REAL DEFAULT 200.0,
             geofencing_enabled INTEGER DEFAULT 1,
+            attendance_policy TEXT DEFAULT NULL,
             created_at TEXT NOT NULL
         )
     """)
+
+    c.execute("PRAGMA table_info(sites)")
+    existing_site_cols = [row["name"] for row in c.fetchall()]
+    if "attendance_policy" not in existing_site_cols:
+        try:
+            c.execute("ALTER TABLE sites ADD COLUMN attendance_policy TEXT DEFAULT NULL")
+        except Exception:
+            pass
 
     # 7. Shifts Table (Industrial shifts)
     c.execute("""
@@ -244,11 +255,20 @@ def init_db(db_path=None):
             flag_reason TEXT,
             reviewed_by INTEGER,
             review_note TEXT,
+            attendance_method TEXT DEFAULT 'face',
             created_at TEXT NOT NULL,
             FOREIGN KEY (employee_id) REFERENCES employees(id),
             FOREIGN KEY (site_id) REFERENCES sites(id)
         )
     """)
+
+    c.execute("PRAGMA table_info(attendance_events)")
+    existing_event_cols = [row["name"] for row in c.fetchall()]
+    if "attendance_method" not in existing_event_cols:
+        try:
+            c.execute("ALTER TABLE attendance_events ADD COLUMN attendance_method TEXT DEFAULT 'face'")
+        except Exception:
+            pass
 
     # 11. Correction Requests Table
     c.execute("""
@@ -296,7 +316,8 @@ def init_db(db_path=None):
         "match_threshold": str(Config.MATCH_THRESHOLD),
         "review_threshold": str(Config.REVIEW_THRESHOLD),
         "duplicate_cooldown_seconds": str(Config.DUPLICATE_COOLDOWN_SECONDS),
-        "geocoding_provider": Config.GEOCODING_PROVIDER
+        "geocoding_provider": Config.GEOCODING_PROVIDER,
+        "global_attendance_policy": "both"
     }
     for k, v in default_settings.items():
         c.execute("""
@@ -478,3 +499,195 @@ def set_setting(key, value):
     """, (key, str(value), now))
     conn.commit()
     conn.close()
+
+# ========================================================
+# Attendance Method Policy Helpers (Global & Per-Site)
+# ========================================================
+VALID_ATTENDANCE_POLICIES = ("face_only", "manual_only", "both")
+
+def get_effective_attendance_policy(site_id=None):
+    """
+    Resolves the effective attendance policy for a given site:
+    - If site_id is provided and the site has an explicit override ('face_only', 'manual_only', 'both'),
+      that override is returned.
+    - Otherwise (or if site_id is None / site not found / override is NULL or 'inherit'),
+      the company-wide global default policy is returned (defaulting to 'both').
+    Returns one of: 'face_only', 'manual_only', 'both'.
+    """
+    global_policy = get_setting("global_attendance_policy", "both")
+    if global_policy not in VALID_ATTENDANCE_POLICIES:
+        global_policy = "both"
+
+    if site_id is not None:
+        try:
+            conn = get_db_connection()
+            c = conn.cursor()
+            c.execute("SELECT attendance_policy FROM sites WHERE id = ?", (site_id,))
+            row = c.fetchone()
+            conn.close()
+            if row and row["attendance_policy"] in VALID_ATTENDANCE_POLICIES:
+                return row["attendance_policy"]
+        except Exception:
+            pass
+
+    return global_policy
+
+def get_site_attendance_policy_info(site_id):
+    """
+    Returns policy metadata for a specific site:
+    {
+        'site_id': int,
+        'site_name': str,
+        'override_policy': str or None,
+        'global_policy': str,
+        'effective_policy': str,
+        'is_override': bool
+    }
+    """
+    global_policy = get_setting("global_attendance_policy", "both")
+    if global_policy not in VALID_ATTENDANCE_POLICIES:
+        global_policy = "both"
+
+    conn = get_db_connection()
+    c = conn.cursor()
+    c.execute("SELECT id, name, attendance_policy FROM sites WHERE id = ?", (site_id,))
+    row = c.fetchone()
+    conn.close()
+
+    if not row:
+        return {
+            "site_id": site_id,
+            "site_name": "Unknown Site",
+            "override_policy": None,
+            "global_policy": global_policy,
+            "effective_policy": global_policy,
+            "is_override": False
+        }
+
+    raw_override = row["attendance_policy"]
+    has_override = raw_override in VALID_ATTENDANCE_POLICIES
+    effective = raw_override if has_override else global_policy
+
+    return {
+        "site_id": row["id"],
+        "site_name": row["name"],
+        "override_policy": raw_override if has_override else None,
+        "global_policy": global_policy,
+        "effective_policy": effective,
+        "is_override": has_override
+    }
+
+def get_all_sites_attendance_policies():
+    """
+    Returns list of all sites with explicit overrides, effective policies, and employee counts.
+    """
+    global_policy = get_setting("global_attendance_policy", "both")
+    if global_policy not in VALID_ATTENDANCE_POLICIES:
+        global_policy = "both"
+
+    conn = get_db_connection()
+    c = conn.cursor()
+    c.execute("""
+        SELECT s.id, s.name, s.address, s.attendance_policy,
+               COUNT(e.id) AS employee_count
+        FROM sites s
+        LEFT JOIN employees e ON e.site_id = s.id AND e.active = 1
+        GROUP BY s.id
+        ORDER BY s.id ASC
+    """)
+    rows = c.fetchall()
+    conn.close()
+
+    result = []
+    for r in rows:
+        raw_override = r["attendance_policy"]
+        has_override = raw_override in VALID_ATTENDANCE_POLICIES
+        effective = raw_override if has_override else global_policy
+        result.append({
+            "id": r["id"],
+            "name": r["name"],
+            "address": r["address"],
+            "override_policy": raw_override if has_override else None,
+            "effective_policy": effective,
+            "is_override": has_override,
+            "employee_count": r["employee_count"]
+        })
+    return result
+
+def update_attendance_policies(global_policy, site_overrides=None, actor_id=None, actor_role="admin"):
+    """
+    Persists global policy and per-site overrides, logging tamper-evident audit trail entries.
+    """
+    if global_policy not in VALID_ATTENDANCE_POLICIES:
+        raise ValueError(f"Invalid global attendance policy: '{global_policy}'. Must be one of {VALID_ATTENDANCE_POLICIES}")
+
+    old_global = get_setting("global_attendance_policy", "both")
+    if old_global not in VALID_ATTENDANCE_POLICIES:
+        old_global = "both"
+
+    global_changed = (old_global != global_policy)
+    if global_changed:
+        set_setting("global_attendance_policy", global_policy)
+        log_audit(
+            actor_id=actor_id,
+            actor_role=actor_role,
+            action="UPDATE_GLOBAL_ATTENDANCE_POLICY",
+            resource_type="settings",
+            resource_id="global_attendance_policy",
+            details=f"Changed company-wide attendance policy from '{old_global}' to '{global_policy}'"
+        )
+
+    site_changes = []
+    if site_overrides:
+        conn = get_db_connection()
+        c = conn.cursor()
+        for s_id_raw, override_val in site_overrides.items():
+            try:
+                s_id = int(s_id_raw)
+            except (ValueError, TypeError):
+                continue
+
+            c.execute("SELECT name, attendance_policy FROM sites WHERE id = ?", (s_id,))
+            site_row = c.fetchone()
+            if not site_row:
+                continue
+
+            site_name = site_row["name"]
+            current_override = site_row["attendance_policy"]
+
+            cleaned_override = None
+            if override_val in VALID_ATTENDANCE_POLICIES:
+                cleaned_override = override_val
+            elif override_val in (None, "", "inherit", "null", "None"):
+                cleaned_override = None
+            else:
+                continue # ignore unrecognized values
+
+            if current_override != cleaned_override:
+                c.execute("UPDATE sites SET attendance_policy = ? WHERE id = ?", (cleaned_override, s_id))
+                effective_now = cleaned_override if cleaned_override else global_policy
+                log_audit(
+                    actor_id=actor_id,
+                    actor_role=actor_role,
+                    action="UPDATE_SITE_ATTENDANCE_POLICY",
+                    resource_type="site",
+                    resource_id=s_id,
+                    details=f"Changed site '{site_name}' policy override from '{current_override or 'inherit'}' to '{cleaned_override or 'inherit'}' (Effective: {effective_now})",
+                    db_conn=conn
+                )
+                site_changes.append({
+                    "site_id": s_id,
+                    "site_name": site_name,
+                    "old_override": current_override,
+                    "new_override": cleaned_override,
+                    "effective_policy": effective_now
+                })
+
+        conn.commit()
+        conn.close()
+
+    return {
+        "global_policy": global_policy,
+        "global_changed": global_changed,
+        "site_changes": site_changes
+    }

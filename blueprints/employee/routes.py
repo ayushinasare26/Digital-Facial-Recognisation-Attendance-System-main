@@ -15,15 +15,17 @@ from flask import (
     url_for, session, flash, abort, current_app
 )
 from . import employee_bp
-from core.db import get_db_connection, log_audit
+from core.db import get_db_connection, log_audit, get_effective_attendance_policy
 from core.auth import (
     login_required_employee,
     authenticate_employee,
     rate_limit
 )
-from core.pipeline import run_attendance_pipeline
+from core.pipeline import run_attendance_pipeline, get_employee_site_and_shift, check_duplicate_event
+from core.geofence import validate_geofence
+from core.geotag import reverse_geocode
 from core.shift_engine import calculate_shift_hours, evaluate_check_in, evaluate_check_out
-from config import Config, get_utc_now, get_local_now, format_local_timestamp, format_local_date
+from config import Config, get_utc_now, get_utc_iso, get_local_now, format_local_timestamp, format_local_date
 
 @employee_bp.route("/login", methods=["GET", "POST"])
 def login():
@@ -150,7 +152,14 @@ def check_in_out():
         legacy_events = [dict(r) for r in c.fetchall()]
         events_today = [ev for ev in legacy_events if format_local_date(ev["timestamp"]) == today_date]
 
+    # Check biometric face enrollment status
+    c.execute("SELECT COUNT(*) FROM embeddings WHERE student_id = ?", (emp_id,))
+    has_face_enrollment = (c.fetchone()[0] > 0)
+
     conn.close()
+
+    site_id = emp_data["site_id"] if emp_data and "site_id" in emp_data.keys() else None
+    effective_policy = get_effective_attendance_policy(site_id)
 
     for ev in events_today:
         ev["time_display"] = format_local_timestamp(ev["timestamp"], include_year=False)
@@ -204,8 +213,42 @@ def check_in_out():
         has_checkout=has_checkout,
         events_today=events_today,
         site=site_info,
-        shift=shift_info
+        shift=shift_info,
+        effective_policy=effective_policy,
+        has_face_enrollment=has_face_enrollment
     )
+
+@employee_bp.route("/attendance-policy", methods=["GET"])
+@employee_bp.route("/api/attendance-policy", methods=["GET"])
+@login_required_employee
+def employee_attendance_policy():
+    """Returns effective attendance method policy and face enrollment status for active employee."""
+    emp_id = session.get("employee_id") or session.get("student_id")
+    conn = get_db_connection()
+    c = conn.cursor()
+    c.execute("""
+        SELECT e.site_id, s.name as site_name
+        FROM employees e
+        LEFT JOIN sites s ON s.id = e.site_id
+        WHERE e.id = ?
+    """, (emp_id,))
+    row = c.fetchone()
+    site_id = row["site_id"] if row else None
+    site_name = row["site_name"] if row and row["site_name"] else "Headquarters"
+
+    c.execute("SELECT COUNT(*) FROM embeddings WHERE student_id = ?", (emp_id,))
+    has_face_enrollment = (c.fetchone()[0] > 0)
+    conn.close()
+
+    effective_policy = get_effective_attendance_policy(site_id)
+
+    return jsonify({
+        "success": True,
+        "site_id": site_id,
+        "site_name": site_name,
+        "effective_policy": effective_policy,
+        "has_face_enrollment": has_face_enrollment
+    })
 
 @employee_bp.route("/", methods=["GET"])
 @employee_bp.route("/mark-attendance", methods=["GET"])
@@ -213,13 +256,57 @@ def check_in_out():
 def mark_attendance_alias():
     return check_in_out()
 
+def get_employee_today_events(employee_id):
+    """Fetches all attendance events recorded today for the employee."""
+    today_date = get_local_now().date().isoformat()
+    conn = get_db_connection()
+    c = conn.cursor()
+    c.execute("""
+        SELECT id, event_type, timestamp, status, attendance_method, within_geofence, flagged, flag_reason
+        FROM attendance_events
+        WHERE employee_id = ?
+        ORDER BY timestamp ASC
+    """, (employee_id,))
+    all_events = [dict(r) for r in c.fetchall()]
+    events_today = [ev for ev in all_events if format_local_date(ev["timestamp"]) == today_date]
+    if not events_today and not all_events:
+        c.execute("""
+            SELECT id, 'check_in' as event_type, timestamp, status, 'face' as attendance_method, within_geofence, flagged, flag_reason
+            FROM attendance
+            WHERE student_id = ?
+            ORDER BY timestamp ASC
+        """, (employee_id,))
+        legacy_events = [dict(r) for r in c.fetchall()]
+        events_today = [ev for ev in legacy_events if format_local_date(ev["timestamp"]) == today_date]
+    conn.close()
+    return events_today
+
+def validate_attendance_sequence(employee_id, event_type):
+    """
+    Validates check-in / check-out state sequence:
+    - Cannot check in twice without checking out.
+    - Cannot check out without checking in today.
+    Returns (is_valid: bool, error_message: Optional[str])
+    """
+    events_today = get_employee_today_events(employee_id)
+    if event_type == "check_in":
+        if events_today and events_today[-1]["event_type"] == "check_in":
+            return False, "You are already checked in."
+    elif event_type == "check_out":
+        if not events_today or events_today[-1]["event_type"] != "check_in":
+            return False, "You cannot check out because you have not checked in today."
+    return True, None
+
 @employee_bp.route("/check-in", methods=["POST"])
 @employee_bp.route("/api/check-in", methods=["POST"])
 @employee_bp.route("/mark-attendance", methods=["POST"])
 @login_required_employee
 @rate_limit(max_requests=20, window_seconds=60, scope="emp_checkin")
 def api_check_in():
-    """Processes check-in event via live camera + liveness + GPS."""
+    """Processes check-in event via live camera + liveness + GPS or manual method."""
+    method = request.form.get("attendance_method") or (request.get_json(silent=True) or {}).get("attendance_method")
+    if method == "manual":
+        return _process_manual_attendance(event_type="check_in")
     return _process_attendance_event(event_type="check_in")
 
 @employee_bp.route("/check-out", methods=["POST"])
@@ -227,8 +314,250 @@ def api_check_in():
 @login_required_employee
 @rate_limit(max_requests=20, window_seconds=60, scope="emp_checkout")
 def api_check_out():
-    """Processes check-out event via live camera + liveness + GPS."""
+    """Processes check-out event via live camera + liveness + GPS or manual method."""
+    method = request.form.get("attendance_method") or (request.get_json(silent=True) or {}).get("attendance_method")
+    if method == "manual":
+        return _process_manual_attendance(event_type="check_out")
     return _process_attendance_event(event_type="check_out")
+
+@employee_bp.route("/manual-check-in", methods=["POST"])
+@employee_bp.route("/api/manual-check-in", methods=["POST"])
+@login_required_employee
+@rate_limit(max_requests=20, window_seconds=60, scope="emp_manual_checkin")
+def api_manual_check_in():
+    """Dedicated endpoint for Method 2: Manual Check-In (No camera / biometric scan)."""
+    return _process_manual_attendance(event_type="check_in")
+
+@employee_bp.route("/manual-check-out", methods=["POST"])
+@employee_bp.route("/api/manual-check-out", methods=["POST"])
+@login_required_employee
+@rate_limit(max_requests=20, window_seconds=60, scope="emp_manual_checkout")
+def api_manual_check_out():
+    """Dedicated endpoint for Method 2: Manual Check-Out (No camera / biometric scan)."""
+    return _process_manual_attendance(event_type="check_out")
+
+def _process_manual_attendance(event_type="check_in"):
+    """
+    Method 2: Manual Attendance Processing (No Camera / Facial Recognition).
+    Security requirement: Employee ID is strictly obtained from server-side session.
+    Enforces employee active status, check-in/out state sequence, geofencing, shift rules, and duplicate cooldown.
+    """
+    session_emp_id = session.get("employee_id") or session.get("student_id")
+    if not session_emp_id:
+        return jsonify({"success": False, "message": "Your session has expired. Please log in again."}), 401
+
+    conn = get_db_connection()
+    c = conn.cursor()
+    c.execute("SELECT id, name, employee_code, active, site_id, shift_id FROM employees WHERE id = ?", (session_emp_id,))
+    emp = c.fetchone()
+    conn.close()
+
+    if not emp:
+        return jsonify({"success": False, "message": "Employee record not found."}), 404
+    if not emp["active"]:
+        return jsonify({"success": False, "message": "Your employee account is inactive."}), 403
+
+    # 0. Policy Enforcement: Check if manual attendance is allowed at employee's site
+    effective_policy = get_effective_attendance_policy(emp["site_id"])
+    if effective_policy == "face_only":
+        return jsonify({
+            "success": False,
+            "error_stage": "Policy Enforcement",
+            "policy_mismatch": True,
+            "effective_policy": "face_only",
+            "message": "Your site now requires Face Recognition for attendance — please refresh."
+        }), 403
+
+    emp_name = emp["name"]
+
+    # 1. State Sequence Validation
+    valid_seq, seq_err = validate_attendance_sequence(session_emp_id, event_type)
+    if not valid_seq:
+        return jsonify({"success": False, "message": seq_err}), 400
+
+    # 2. Extract client parameters
+    lat = None
+    lon = None
+    bypass_cooldown = False
+
+    if request.is_json:
+        data = request.get_json() or {}
+        lat = data.get("latitude")
+        lon = data.get("longitude")
+        bypass_cooldown = bool(data.get("bypass_cooldown", False))
+    elif request.form:
+        lat = request.form.get("latitude")
+        lon = request.form.get("longitude")
+        bypass_cooldown = request.form.get("bypass_cooldown", "false").lower() in ("true", "1", "yes")
+
+    if lat in ("", "null", "undefined"): lat = None
+    if lon in ("", "null", "undefined"): lon = None
+
+    lat_val, lon_val = None, None
+    if lat is not None and lon is not None:
+        try:
+            lat_val = float(lat)
+            lon_val = float(lon)
+            if not (-90.0 <= lat_val <= 90.0 and -180.0 <= lon_val <= 180.0):
+                lat_val, lon_val = None, None
+        except (ValueError, TypeError):
+            lat_val, lon_val = None, None
+
+    # 3. Duplicate cooldown check
+    if not bypass_cooldown:
+        is_dup, prev = check_duplicate_event(session_emp_id, event_type=event_type)
+        if is_dup:
+            return jsonify({
+                "success": False,
+                "message": f"Duplicate attendance prevented: Attendance marked {prev['elapsed_seconds']}s ago. Cooldown remaining: {prev['remaining_minutes']}m."
+            }), 400
+
+    # 4. Geolocation & Geofence Validation
+    assigned_site, assigned_shift = get_employee_site_and_shift(session_emp_id)
+
+    geofence_res = validate_geofence(
+        employee_lat=lat_val,
+        employee_lon=lon_val,
+        site_lat=assigned_site["latitude"],
+        site_lon=assigned_site["longitude"],
+        radius_meters=assigned_site["geofence_radius_meters"],
+        geofencing_enabled=assigned_site["geofencing_enabled"],
+        site_name=assigned_site["name"]
+    )
+
+    within_geofence = geofence_res["within_geofence"]
+    dist_meters = geofence_res["distance_meters"]
+    is_flagged = geofence_res["flagged"]
+    flag_reason = geofence_res["flag_reason"]
+
+    # Reverse geocode address if coordinates are provided
+    if lat_val is not None and lon_val is not None:
+        resolved_address = reverse_geocode(lat_val, lon_val)
+    else:
+        resolved_address = "Location Permission Denied"
+        if assigned_site.get("geofencing_enabled", 0):
+            is_flagged = True
+            flag_reason = f"Missing GPS coordinates for geofenced site ({assigned_site['name']})"
+
+    # 5. Shift and Punctuality Rules
+    local_now = get_local_now()
+    now_dt = local_now.replace(tzinfo=None)
+    iso_timestamp = get_utc_iso()
+    timestamp_display = format_local_timestamp(iso_timestamp, include_year=False)
+    hours_worked = 0.0
+    overtime_hours = 0.0
+
+    if event_type == "check_in":
+        shift_eval = evaluate_check_in(now_dt, assigned_shift)
+        event_status = shift_eval["status"]
+        if event_status == "late" and not flag_reason:
+            flag_reason = shift_eval.get("flag_reason")
+        if is_flagged and assigned_site.get("geofencing_enabled", 0):
+            event_status = "flagged"
+    else:
+        events_today = get_employee_today_events(session_emp_id)
+        check_ins_today = [ev for ev in events_today if ev["event_type"] == "check_in"]
+        check_in_ts = check_ins_today[-1]["timestamp"] if check_ins_today else None
+
+        hours_calc = calculate_shift_hours(check_in_ts, now_dt, assigned_shift)
+        event_status = hours_calc["status"]
+        hours_worked = hours_calc.get("regular_hours", 0.0)
+        overtime_hours = hours_calc.get("overtime_hours", 0.0)
+
+        if is_flagged and assigned_site.get("geofencing_enabled", 0):
+            event_status = "flagged"
+
+    # 6. Record in Database (confidence, liveness, photo_path are NULL for manual)
+    conn = get_db_connection()
+    c = conn.cursor()
+    try:
+        c.execute("""
+            INSERT INTO attendance_events (
+                employee_id, event_type, timestamp, latitude, longitude,
+                address, site_id, distance_from_site_meters, within_geofence,
+                confidence, liveness_passed, geotagged_photo_path,
+                status, flagged, flag_reason, attendance_method, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            session_emp_id,
+            event_type,
+            iso_timestamp,
+            lat_val,
+            lon_val,
+            resolved_address,
+            assigned_site["id"],
+            dist_meters,
+            1 if within_geofence else 0,
+            None,
+            None,
+            None,
+            event_status,
+            1 if is_flagged else 0,
+            flag_reason,
+            "manual",
+            iso_timestamp
+        ))
+        event_id = c.lastrowid
+
+        legacy_status = "flagged" if is_flagged else ("success" if event_status in ("on_time", "overtime", "success") else event_status)
+        c.execute("""
+            INSERT INTO attendance (
+                student_id, name, timestamp, latitude, longitude,
+                address, confidence, liveness_passed, geotagged_photo_path,
+                status, event_type, site_id, distance_from_site_meters,
+                within_geofence, flagged, flag_reason, attendance_method
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            session_emp_id,
+            emp_name,
+            iso_timestamp,
+            lat_val,
+            lon_val,
+            resolved_address,
+            None,
+            None,
+            None,
+            legacy_status,
+            event_type,
+            assigned_site["id"],
+            dist_meters,
+            1 if within_geofence else 0,
+            1 if is_flagged else 0,
+            flag_reason,
+            "manual"
+        ))
+        conn.commit()
+    finally:
+        conn.close()
+
+    # 7. Audit Logging
+    audit_action = "MANUAL_CHECK_IN" if event_type == "check_in" else "MANUAL_CHECK_OUT"
+    log_audit(
+        session_emp_id,
+        session.get("role", "employee"),
+        audit_action,
+        "attendance_event",
+        event_id,
+        f"Manual {event_type.replace('_', ' ')} recorded at {timestamp_display}. Site: {assigned_site['name']}, Flagged: {is_flagged}"
+    )
+
+    action_label = "check-in" if event_type == "check_in" else "check-out"
+    return jsonify({
+        "success": True,
+        "message": f"Manual {action_label} successful at {local_now.strftime('%I:%M %p')}.",
+        "attendance_method": "manual",
+        "event_type": event_type,
+        "event_id": event_id,
+        "status": event_status,
+        "flagged": is_flagged,
+        "flag_reason": flag_reason,
+        "timestamp_display": timestamp_display,
+        "address": resolved_address,
+        "distance_from_site_meters": dist_meters,
+        "within_geofence": within_geofence,
+        "hours_worked": hours_worked,
+        "overtime_hours": overtime_hours
+    }), 200
 
 def _process_attendance_event(event_type="check_in"):
     session_emp_id = session.get("employee_id") or session.get("student_id")
@@ -273,6 +602,49 @@ def _process_attendance_event(event_type="check_in"):
         liveness_frames = data.get("liveness_frames") or []
         if data.get("event_type"):
             event_type = data.get("event_type")
+
+    # Policy Enforcement for Face Attendance
+    if session_emp_id:
+        conn = get_db_connection()
+        c = conn.cursor()
+        c.execute("SELECT site_id FROM employees WHERE id = ?", (session_emp_id,))
+        emp_row = c.fetchone()
+        site_id = emp_row["site_id"] if emp_row else None
+        effective_policy = get_effective_attendance_policy(site_id)
+
+        if effective_policy == "manual_only":
+            conn.close()
+            return jsonify({
+                "success": False,
+                "error_stage": "Policy Enforcement",
+                "policy_mismatch": True,
+                "effective_policy": "manual_only",
+                "message": "Your site now requires Manual Attendance for attendance — please refresh."
+            }), 403
+
+        if effective_policy == "face_only" and not is_demo:
+            c.execute("SELECT COUNT(*) FROM embeddings WHERE student_id = ?", (session_emp_id,))
+            has_emb = (c.fetchone()[0] > 0)
+            if not has_emb:
+                conn.close()
+                return jsonify({
+                    "success": False,
+                    "error_stage": "Policy Enforcement",
+                    "enrollment_required": True,
+                    "effective_policy": "face_only",
+                    "message": "Your site requires Face Recognition, but your face profile is not yet enrolled. Please contact your system administrator for biometric enrollment."
+                }), 403
+        conn.close()
+
+    # State sequence validation for real live face attendance
+    if not is_demo and not bypass_cooldown and session_emp_id:
+        valid_seq, seq_err = validate_attendance_sequence(session_emp_id, event_type)
+        if not valid_seq:
+            return jsonify({
+                "success": False,
+                "error_stage": "State Validation",
+                "message": seq_err
+            }), 400
 
     if lat in ("", "null", "undefined"): lat = None
     if lon in ("", "null", "undefined"): lon = None
@@ -363,7 +735,8 @@ def my_attendance():
     query = """
         SELECT id, event_type, timestamp, latitude, longitude, address,
                distance_from_site_meters, within_geofence, confidence,
-               status, flagged, flag_reason, geotagged_photo_path
+               status, flagged, flag_reason, geotagged_photo_path,
+               attendance_method
         FROM attendance_events
         WHERE employee_id = ?
     """
@@ -388,7 +761,8 @@ def my_attendance():
         c.execute("""
             SELECT id, 'check_in' as event_type, timestamp, latitude, longitude, address,
                    confidence, status, geotagged_photo_path,
-                   distance_from_site_meters, within_geofence, flagged, flag_reason
+                   distance_from_site_meters, within_geofence, flagged, flag_reason,
+                   attendance_method
             FROM attendance
             WHERE student_id = ?
             ORDER BY timestamp DESC LIMIT 300
@@ -431,6 +805,9 @@ def my_attendance():
 
         in_ts = first_in["timestamp"] if first_in else None
         out_ts = last_out["timestamp"] if last_out else None
+
+        check_in_method = first_in.get("attendance_method") or "face" if first_in else "—"
+        check_out_method = last_out.get("attendance_method") or "face" if last_out else "—"
 
         is_active_today = (day_str == local_today_str and first_in is not None and last_out is None)
         if is_active_today:
@@ -477,6 +854,8 @@ def my_attendance():
             "date": day_str,
             "check_in_time": format_local_timestamp(in_ts, include_year=False) if in_ts else "—",
             "check_out_time": format_local_timestamp(out_ts, include_year=False) if out_ts else "—",
+            "check_in_method": check_in_method,
+            "check_out_method": check_out_method,
             "hours_worked": net_h,
             "regular_hours": reg_h,
             "overtime_hours": ot_h,

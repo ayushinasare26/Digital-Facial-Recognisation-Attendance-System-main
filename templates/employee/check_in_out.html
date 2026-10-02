@@ -49,77 +49,181 @@
         <!-- Live Camera & Scanner Column -->
         <div class="col-lg-7">
             <div class="card border-0 shadow-sm rounded-4 p-4 bg-white">
-                <div class="d-flex justify-content-between align-items-center mb-3">
-                    <div>
-                        <h6 class="fw-bold mb-0 text-dark">Live Facial Verification & GPS</h6>
-                        <span class="text-muted small" id="scannerStatusText">Position face within camera oval to record event.</span>
+                <!-- Attendance Method Selection (Face vs Manual) -->
+                <div id="methodSelectorWrap" class="mb-4" {% if effective_policy != 'both' %}style="display: none;"{% endif %}>
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <label class="form-label text-muted small fw-bold text-uppercase mb-0" style="letter-spacing: 0.05em;">Select Attendance Method</label>
+                        <span class="badge bg-light text-secondary border small">Both Methods Allowed</span>
                     </div>
-                    <div id="liveGpsBadge" class="badge bg-light text-muted border px-2 py-1 small">
-                        <i class="bi bi-geo-alt"></i> Acquiring GPS...
-                    </div>
-                </div>
-
-                <!-- Geofence Pre-Submission Warning Banner -->
-                <div id="geofenceWarningBanner" class="alert alert-warning border-0 rounded-3 shadow-sm py-2 px-3 small d-flex align-items-center gap-2 mb-3" style="display: none !important;">
-                    <i class="bi bi-exclamation-triangle-fill text-warning fs-5"></i>
-                    <div id="geofenceWarningText">
-                        Location Warning: You appear to be outside your registered work site geofence.
-                    </div>
-                </div>
-
-                <!-- Camera Container -->
-                <div class="camera-container mx-auto position-relative rounded-4 overflow-hidden shadow-sm" style="max-width: 520px; width: 100%; background: #0f172a;">
-                    <video id="markVideo" width="100%" height="auto" autoplay playsinline muted style="aspect-ratio: 4/3; object-fit: cover; display: block;"></video>
-                    <div class="face-guide-overlay" id="faceGuide"></div>
-
-                    <!-- Liveness Challenge Overlay -->
-                    <div id="challengeBanner" class="position-absolute bottom-0 start-0 end-0 p-3 text-white text-center" style="background: rgba(15, 23, 42, 0.88); backdrop-filter: blur(8px); display: none;">
-                        <div class="d-flex align-items-center justify-content-center gap-2 mb-1">
-                            <span class="spinner-grow spinner-grow-sm text-warning" role="status"></span>
-                            <span class="fw-bold" id="challengeTitle">Biometric Liveness Check</span>
+                    <div class="row g-2">
+                        <div class="col-6">
+                            <button type="button" id="methodFaceBtn" class="btn w-100 p-3 rounded-4 text-start border-2 border-primary bg-primary bg-opacity-10 position-relative transition-all shadow-sm">
+                                <div class="d-flex align-items-center justify-content-between mb-1">
+                                    <span class="fw-bold text-dark"><i class="bi bi-camera-video text-primary me-2"></i>Face Recognition</span>
+                                    <span class="badge bg-primary rounded-pill" id="methodFaceBadge"><i class="bi bi-check-lg"></i></span>
+                                </div>
+                                <div class="text-muted" style="font-size: 0.76rem;">Use camera & live biometric scan</div>
+                            </button>
                         </div>
-                        <div class="small text-light" id="challengeInstruction">Look into camera and blink naturally...</div>
-                        <div class="progress mt-2 mx-auto" style="height: 4px; max-width: 200px;">
-                            <div class="progress-bar bg-warning" id="challengeProgress" style="width: 0%"></div>
+                        <div class="col-6">
+                            <button type="button" id="methodManualBtn" class="btn w-100 p-3 rounded-4 text-start border border-light-subtle bg-light position-relative transition-all">
+                                <div class="d-flex align-items-center justify-content-between mb-1">
+                                    <span class="fw-bold text-dark"><i class="bi bi-shield-check text-secondary me-2"></i>Manual Attendance</span>
+                                    <span class="badge bg-secondary rounded-pill d-none" id="methodManualBadge"><i class="bi bi-check-lg"></i></span>
+                                </div>
+                                <div class="text-muted" style="font-size: 0.76rem;">Check in/out without facial scanning</div>
+                            </button>
                         </div>
                     </div>
                 </div>
 
-                <!-- Segmented Action Mode Switcher -->
-                <div class="d-flex justify-content-center mt-4 mb-2">
-                    <div class="btn-group p-1 bg-light rounded-pill border shadow-sm" role="group" aria-label="Attendance Mode">
-                        <button type="button" id="modeCheckInBtn" class="btn btn-sm rounded-pill px-3 fw-semibold transition-all {% if next_action == 'check_in' %}btn-success text-white shadow-sm{% else %}text-secondary{% endif %}">
-                            <i class="bi bi-box-arrow-in-right me-1"></i> Check In
-                        </button>
-                        <button type="button" id="modeCheckOutBtn" class="btn btn-sm rounded-pill px-3 fw-semibold transition-all {% if next_action == 'check_out' %}btn-danger text-white shadow-sm{% else %}text-secondary{% endif %}">
-                            <i class="bi bi-box-arrow-right me-1"></i> Check Out
-                        </button>
+                <!-- Active Policy Enforcement Banner (Shown when admin enforces single method) -->
+                {% if effective_policy != 'both' %}
+                <div id="policyEnforcedBanner" class="alert alert-light border rounded-4 py-2 px-3 small d-flex align-items-center justify-content-between mb-3 shadow-sm">
+                    <div class="d-flex align-items-center gap-2">
+                        <i class="bi bi-shield-lock-fill text-primary fs-6"></i>
+                        <span id="policyEnforcedText">
+                            {% if effective_policy == 'face_only' %}
+                                Work site policy: <strong>Face Recognition Only</strong> is enforced for your location.
+                            {% elif effective_policy == 'manual_only' %}
+                                Work site policy: <strong>Manual Attendance Only</strong> is enforced for your location.
+                            {% endif %}
+                        </span>
                     </div>
-                </div>
-
-                <!-- Interactive Action Toggle Controls -->
-                <div class="d-flex flex-wrap justify-content-center gap-3 mt-2">
-                    <button id="startCamBtn" class="btn btn-outline-secondary px-4 rounded-pill fw-semibold shadow-sm">
-                        <i class="bi bi-camera-video me-1"></i> Start Camera
-                    </button>
-
-                    <!-- Toggle Button between Check-In and Check-Out -->
-                    <button id="actionBtn" class="btn btn-lg px-4 rounded-pill fw-bold shadow transition-all" style="{% if next_action == 'check_out' %}background:#dc2626; border-color:#dc2626; color:white;{% else %}background:#059669; border-color:#059669; color:white;{% endif %}" disabled>
-                        <i class="bi {% if next_action == 'check_out' %}bi-box-arrow-right{% else %}bi-box-arrow-in-right{% endif %} me-2" id="actionBtnIcon"></i>
-                        <span id="actionBtnText">{% if next_action == 'check_out' %}Check Out Now{% else %}Check In Now{% endif %}</span>
-                    </button>
-
-                    <button id="stopCamBtn" class="btn btn-outline-danger px-3 rounded-pill fw-semibold" disabled>
-                        <i class="bi bi-stop-circle me-1"></i> Stop
-                    </button>
-                </div>
-
-                <div class="mt-3 text-center">
-                    <span class="text-muted small">
-                        Event Mode: <span class="badge {% if next_action == 'check_out' %}bg-danger-subtle text-danger{% else %}bg-success-subtle text-success{% endif %}" id="eventModeBadge">{% if next_action == 'check_out' %}Check Out{% else %}Check In{% endif %}</span>
-                        • Site Radius: <strong>{{ site.geofence_radius_meters|int }}m</strong>
-                        {% if not site.geofencing_enabled %}<span class="badge bg-info-subtle text-info ms-1">No Geofence Required</span>{% endif %}
+                    <span class="badge {% if effective_policy == 'face_only' %}bg-primary-subtle text-primary border border-primary-subtle{% else %}bg-success-subtle text-success border border-success-subtle{% endif %}">
+                        {% if effective_policy == 'face_only' %}Mandatory Biometrics{% else %}Session Verified{% endif %}
                     </span>
+                </div>
+                {% endif %}
+
+                <!-- Missing Biometric Face Enrollment Alert (Face Only Policy) -->
+                {% if effective_policy == 'face_only' and not has_face_enrollment %}
+                <div id="enrollmentMissingAlert" class="alert alert-danger border-0 rounded-4 shadow-sm p-3 mb-3">
+                    <div class="d-flex align-items-start gap-2">
+                        <i class="bi bi-exclamation-octagon-fill text-danger fs-5 mt-1"></i>
+                        <div>
+                            <strong class="d-block text-danger">Biometric Face Enrollment Required</strong>
+                            <span class="small text-danger text-opacity-75">
+                                Your work site requires Face Recognition for attendance, but your facial biometric template is not yet enrolled. Please contact your system administrator or HR manager to complete facial enrollment before checking in.
+                            </span>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- METHOD 1: FACE RECOGNITION SECTION -->
+                <div id="faceMethodSection" {% if effective_policy == 'manual_only' %}style="display: none;"{% endif %}>
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <div>
+                            <h6 class="fw-bold mb-0 text-dark">Live Facial Verification & GPS</h6>
+                            <span class="text-muted small" id="scannerStatusText">Position face within camera oval to record event.</span>
+                        </div>
+                        <div id="liveGpsBadge" class="badge bg-light text-muted border px-2 py-1 small">
+                            <i class="bi bi-geo-alt"></i> Acquiring GPS...
+                        </div>
+                    </div>
+
+                    <!-- Geofence Pre-Submission Warning Banner -->
+                    <div id="geofenceWarningBanner" class="alert alert-warning border-0 rounded-3 shadow-sm py-2 px-3 small d-flex align-items-center gap-2 mb-3" style="display: none !important;">
+                        <i class="bi bi-exclamation-triangle-fill text-warning fs-5"></i>
+                        <div id="geofenceWarningText">
+                            Location Warning: You appear to be outside your registered work site geofence.
+                        </div>
+                    </div>
+
+                    <!-- Camera Container -->
+                    <div class="camera-container mx-auto position-relative rounded-4 overflow-hidden shadow-sm" style="max-width: 520px; width: 100%; background: #0f172a;">
+                        <video id="markVideo" width="100%" height="auto" autoplay playsinline muted style="aspect-ratio: 4/3; object-fit: cover; display: block;"></video>
+                        <div class="face-guide-overlay" id="faceGuide"></div>
+
+                        <!-- Liveness Challenge Overlay -->
+                        <div id="challengeBanner" class="position-absolute bottom-0 start-0 end-0 p-3 text-white text-center" style="background: rgba(15, 23, 42, 0.88); backdrop-filter: blur(8px); display: none;">
+                            <div class="d-flex align-items-center justify-content-center gap-2 mb-1">
+                                <span class="spinner-grow spinner-grow-sm text-warning" role="status"></span>
+                                <span class="fw-bold" id="challengeTitle">Biometric Liveness Check</span>
+                            </div>
+                            <div class="small text-light" id="challengeInstruction">Look into camera and blink naturally...</div>
+                            <div class="progress mt-2 mx-auto" style="height: 4px; max-width: 200px;">
+                                <div class="progress-bar bg-warning" id="challengeProgress" style="width: 0%"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Segmented Action Mode Switcher -->
+                    <div class="d-flex justify-content-center mt-4 mb-2">
+                        <div class="btn-group p-1 bg-light rounded-pill border shadow-sm" role="group" aria-label="Attendance Mode">
+                            <button type="button" id="modeCheckInBtn" class="btn btn-sm rounded-pill px-3 fw-semibold transition-all {% if next_action == 'check_in' %}btn-success text-white shadow-sm{% else %}text-secondary{% endif %}">
+                                <i class="bi bi-box-arrow-in-right me-1"></i> Check In
+                            </button>
+                            <button type="button" id="modeCheckOutBtn" class="btn btn-sm rounded-pill px-3 fw-semibold transition-all {% if next_action == 'check_out' %}btn-danger text-white shadow-sm{% else %}text-secondary{% endif %}">
+                                <i class="bi bi-box-arrow-right me-1"></i> Check Out
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Interactive Action Toggle Controls -->
+                    <div class="d-flex flex-wrap justify-content-center gap-3 mt-2">
+                        <button id="startCamBtn" class="btn btn-outline-secondary px-4 rounded-pill fw-semibold shadow-sm">
+                            <i class="bi bi-camera-video me-1"></i> Start Camera
+                        </button>
+
+                        <!-- Toggle Button between Check-In and Check-Out -->
+                        <button id="actionBtn" class="btn btn-lg px-4 rounded-pill fw-bold shadow transition-all" style="{% if next_action == 'check_out' %}background:#dc2626; border-color:#dc2626; color:white;{% else %}background:#059669; border-color:#059669; color:white;{% endif %}" disabled>
+                            <i class="bi {% if next_action == 'check_out' %}bi-box-arrow-right{% else %}bi-box-arrow-in-right{% endif %} me-2" id="actionBtnIcon"></i>
+                            <span id="actionBtnText">{% if next_action == 'check_out' %}Check Out Now{% else %}Check In Now{% endif %}</span>
+                        </button>
+
+                        <button id="stopCamBtn" class="btn btn-outline-danger px-3 rounded-pill fw-semibold" disabled>
+                            <i class="bi bi-stop-circle me-1"></i> Stop
+                        </button>
+                    </div>
+
+                    <div class="mt-3 text-center">
+                        <span class="text-muted small">
+                            Event Mode: <span class="badge {% if next_action == 'check_out' %}bg-danger-subtle text-danger{% else %}bg-success-subtle text-success{% endif %}" id="eventModeBadge">{% if next_action == 'check_out' %}Check Out{% else %}Check In{% endif %}</span>
+                            • Site Radius: <strong>{{ site.geofence_radius_meters|int }}m</strong>
+                            {% if not site.geofencing_enabled %}<span class="badge bg-info-subtle text-info ms-1">No Geofence Required</span>{% endif %}
+                        </span>
+                    </div>
+                </div>
+
+                <!-- METHOD 2: MANUAL ATTENDANCE SECTION -->
+                <div id="manualMethodSection" style="{% if effective_policy == 'manual_only' %}display: block;{% else %}display: none;{% endif %}">
+                    <div class="p-4 rounded-4 border bg-light text-center mb-3">
+                        <div class="mb-3">
+                            <span class="d-inline-flex p-3 rounded-circle bg-white shadow-sm text-primary">
+                                <i class="bi bi-person-check-fill fs-2"></i>
+                            </span>
+                        </div>
+                        <h5 class="fw-bold text-dark mb-1">Session-Authenticated Attendance</h5>
+                        <p class="text-muted small mb-3" style="max-width: 440px; margin: 0 auto;">
+                            Identity authenticated via active employee session. No camera access or facial scan required. Geofence and site rules are validated.
+                        </p>
+
+                        <!-- Segmented Action Mode Switcher for Manual -->
+                        <div class="d-flex justify-content-center mb-3">
+                            <div class="btn-group p-1 bg-white rounded-pill border shadow-sm" role="group" aria-label="Manual Attendance Mode">
+                                <button type="button" id="manualModeCheckInBtn" class="btn btn-sm rounded-pill px-3 fw-semibold transition-all {% if next_action == 'check_in' %}btn-success text-white shadow-sm{% else %}text-secondary{% endif %}">
+                                    <i class="bi bi-box-arrow-in-right me-1"></i> Check In
+                                </button>
+                                <button type="button" id="manualModeCheckOutBtn" class="btn btn-sm rounded-pill px-3 fw-semibold transition-all {% if next_action == 'check_out' %}btn-danger text-white shadow-sm{% else %}text-secondary{% endif %}">
+                                    <i class="bi bi-box-arrow-right me-1"></i> Check Out
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Manual Check In / Check Out Action Button -->
+                        <div class="d-flex justify-content-center">
+                            <button id="manualActionBtn" class="btn btn-lg px-5 py-3 rounded-pill fw-bold shadow transition-all" style="{% if next_action == 'check_out' %}background:#dc2626; border-color:#dc2626; color:white;{% else %}background:#059669; border-color:#059669; color:white;{% endif %}">
+                                <i class="bi {% if next_action == 'check_out' %}bi-box-arrow-right{% else %}bi-box-arrow-in-right{% endif %} me-2" id="manualActionBtnIcon"></i>
+                                <span id="manualActionBtnText">{% if next_action == 'check_out' %}Check Out Manually{% else %}Check In Manually{% endif %}</span>
+                            </button>
+                        </div>
+
+                        <div class="mt-3 text-muted small">
+                            <i class="bi bi-shield-check text-success me-1"></i>Server-side timestamp recorded • Site: <strong>{{ site.name }}</strong>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -176,7 +280,12 @@
                         </div>
                         <div class="flex-grow-1">
                             <div class="d-flex justify-content-between align-items-center">
-                                <span class="fw-bold small text-dark">{{ ev.event_type|replace('_', ' ')|title }}</span>
+                                <div>
+                                    <span class="fw-bold small text-dark">{{ ev.event_type|replace('_', ' ')|title }}</span>
+                                    <span class="badge bg-light text-muted border ms-1" style="font-size: 0.65rem;">
+                                        <i class="bi {% if ev.attendance_method == 'manual' %}bi-pencil-square text-primary{% else %}bi-camera text-info{% endif %} me-1"></i>{{ 'Manual' if ev.attendance_method == 'manual' else 'Face' }}
+                                    </span>
+                                </div>
                                 <span class="badge {% if ev.status == 'on_time' %}bg-success-subtle text-success{% elif ev.status == 'late' %}bg-warning-subtle text-warning{% elif ev.status == 'flagged' %}bg-danger-subtle text-danger{% else %}bg-primary-subtle text-primary{% endif %}">
                                     {{ ev.status|upper }}
                                 </span>
@@ -217,11 +326,19 @@
             <div class="modal-body p-4">
                 <div class="text-center mb-3">
                     <img id="confirmPhoto" src="" alt="Proof" class="rounded-3 shadow-sm mb-2" style="max-height: 180px; width: auto; max-width: 100%; object-fit: cover; display: none;">
+                    <div id="confirmManualBadge" class="p-3 bg-light rounded-3 border mb-2 d-none">
+                        <i class="bi bi-shield-check text-primary fs-1 d-block mb-1"></i>
+                        <span class="badge bg-primary-subtle text-primary">Session-Verified Manual Attendance</span>
+                    </div>
                     <h5 class="fw-bold text-dark mb-1" id="confirmEmpName">{{ employee_name }}</h5>
                     <span class="badge bg-success-subtle text-success px-3 py-1 rounded-pill" id="confirmStatusBadge">VERIFIED ON-TIME</span>
                 </div>
 
                 <div class="p-3 bg-light rounded-3 border small">
+                    <div class="d-flex justify-content-between mb-2">
+                        <span class="text-secondary"><i class="bi bi-person-badge me-1"></i>Method:</span>
+                        <strong id="confirmMethod">Face Recognition</strong>
+                    </div>
                     <div class="d-flex justify-content-between mb-2">
                         <span class="text-secondary"><i class="bi bi-clock me-1"></i>Timestamp:</span>
                         <strong id="confirmTime">—</strong>
@@ -316,10 +433,138 @@ function setActionMode(mode) {
         if (modeIn) modeIn.className = "btn btn-sm rounded-pill px-3 fw-semibold btn-success text-white shadow-sm";
         if (modeOut) modeOut.className = "btn btn-sm rounded-pill px-3 fw-semibold text-secondary";
     }
+    updateManualButtonUI();
 }
+
+function updateManualButtonUI() {
+    const isOut = currentAction === "check_out";
+    const manualBtn = document.getElementById("manualActionBtn");
+    const manualBtnText = document.getElementById("manualActionBtnText");
+    const manualBtnIcon = document.getElementById("manualActionBtnIcon");
+    const modeIn = document.getElementById("manualModeCheckInBtn");
+    const modeOut = document.getElementById("manualModeCheckOutBtn");
+
+    if (isOut) {
+        if (manualBtn) {
+            manualBtn.style.background = "#dc2626";
+            manualBtn.style.borderColor = "#dc2626";
+            manualBtn.style.color = "white";
+        }
+        if (manualBtnText) manualBtnText.innerText = "Check Out Manually";
+        if (manualBtnIcon) manualBtnIcon.className = "bi bi-box-arrow-right me-2";
+        if (modeIn) modeIn.className = "btn btn-sm rounded-pill px-3 fw-semibold text-secondary";
+        if (modeOut) modeOut.className = "btn btn-sm rounded-pill px-3 fw-semibold btn-danger text-white shadow-sm";
+    } else {
+        if (manualBtn) {
+            manualBtn.style.background = "#059669";
+            manualBtn.style.borderColor = "#059669";
+            manualBtn.style.color = "white";
+        }
+        if (manualBtnText) manualBtnText.innerText = "Check In Manually";
+        if (manualBtnIcon) manualBtnIcon.className = "bi bi-box-arrow-in-right me-2";
+        if (modeIn) modeIn.className = "btn btn-sm rounded-pill px-3 fw-semibold btn-success text-white shadow-sm";
+        if (modeOut) modeOut.className = "btn btn-sm rounded-pill px-3 fw-semibold text-secondary";
+    }
+}
+
+// Attendance Method Switcher (Face Recognition vs Manual Attendance)
+let effectivePolicy = "{{ effective_policy|default('both') }}";
+let hasFaceEnrollment = {{ 'true' if has_face_enrollment else 'false' }};
+let selectedMethod = (effectivePolicy === "manual_only") ? "manual" : "face";
+
+function selectMethod(method) {
+    selectedMethod = method;
+    const faceBtn = document.getElementById("methodFaceBtn");
+    const manualBtn = document.getElementById("methodManualBtn");
+    const faceBadge = document.getElementById("methodFaceBadge");
+    const manualBadge = document.getElementById("methodManualBadge");
+    const faceSection = document.getElementById("faceMethodSection");
+    const manualSection = document.getElementById("manualMethodSection");
+
+    if (method === "manual") {
+        // Stop camera cleanly if running without asking for camera permissions
+        if (currentStream) {
+            currentStream.getTracks().forEach(t => t.stop());
+            currentStream = null;
+            if (video) video.srcObject = null;
+            if (startCamBtn) startCamBtn.disabled = false;
+            if (stopCamBtn) stopCamBtn.disabled = true;
+            if (actionBtn) actionBtn.disabled = true;
+            const scannerStatus = document.getElementById("scannerStatusText");
+            if (scannerStatus) scannerStatus.innerText = "Camera stopped.";
+        }
+
+        if (faceBtn) faceBtn.className = "btn w-100 p-3 rounded-4 text-start border border-light-subtle bg-light position-relative transition-all";
+        if (faceBadge) faceBadge.classList.add("d-none");
+
+        if (manualBtn) manualBtn.className = "btn w-100 p-3 rounded-4 text-start border-2 border-success bg-success bg-opacity-10 position-relative transition-all shadow-sm";
+        if (manualBadge) {
+            manualBadge.className = "badge bg-success rounded-pill";
+            manualBadge.classList.remove("d-none");
+        }
+
+        if (faceSection) faceSection.style.display = "none";
+        if (manualSection) manualSection.style.display = "block";
+        updateManualButtonUI();
+    } else {
+        if (manualBtn) manualBtn.className = "btn w-100 p-3 rounded-4 text-start border border-light-subtle bg-light position-relative transition-all";
+        if (manualBadge) manualBadge.classList.add("d-none");
+
+        if (faceBtn) faceBtn.className = "btn w-100 p-3 rounded-4 text-start border-2 border-primary bg-primary bg-opacity-10 position-relative transition-all shadow-sm";
+        if (faceBadge) {
+            faceBadge.className = "badge bg-primary rounded-pill";
+            faceBadge.classList.remove("d-none");
+        }
+
+        if (manualSection) manualSection.style.display = "none";
+        if (faceSection) faceSection.style.display = "block";
+
+        // If face only policy and not enrolled, disable camera
+        if (effectivePolicy === "face_only" && !hasFaceEnrollment) {
+            if (startCamBtn) startCamBtn.disabled = true;
+            if (actionBtn) actionBtn.disabled = true;
+            const scannerStatus = document.getElementById("scannerStatusText");
+            if (scannerStatus) scannerStatus.innerText = "Biometric face enrollment required. Contact administrator.";
+        }
+    }
+}
+
+// Initialize method according to effective policy
+if (effectivePolicy === "manual_only") {
+    selectMethod("manual");
+} else {
+    selectMethod("face");
+}
+
+// Background fresh policy verification helper
+async function fetchFreshPolicy() {
+    try {
+        const res = await fetch("/employee/api/attendance-policy");
+        if (res.ok) {
+            const data = await res.json();
+            return data;
+        }
+    } catch (e) {
+        // network silent
+    }
+    return null;
+}
+
+// Re-verify policy on window focus
+window.addEventListener("focus", async () => {
+    const p = await fetchFreshPolicy();
+    if (p && p.effective_policy && p.effective_policy !== effectivePolicy) {
+        window.location.reload();
+    }
+});
+
+document.getElementById("methodFaceBtn")?.addEventListener("click", () => selectMethod("face"));
+document.getElementById("methodManualBtn")?.addEventListener("click", () => selectMethod("manual"));
 
 document.getElementById("modeCheckInBtn")?.addEventListener("click", () => setActionMode("check_in"));
 document.getElementById("modeCheckOutBtn")?.addEventListener("click", () => setActionMode("check_out"));
+document.getElementById("manualModeCheckInBtn")?.addEventListener("click", () => setActionMode("check_in"));
+document.getElementById("manualModeCheckOutBtn")?.addEventListener("click", () => setActionMode("check_out"));
 
 // Reload page when confirmation modal is dismissed
 const confirmModalEl = document.getElementById("confirmationModal");
@@ -355,25 +600,30 @@ function acquireLocation() {
                 const dist = calculateHaversine(userCoords.lat, userCoords.lon, siteCoords.lat, siteCoords.lon);
                 
                 const gpsBadge = document.getElementById("liveGpsBadge");
-                gpsBadge.className = "badge bg-success-subtle text-success border border-success-subtle px-2 py-1 small";
-                gpsBadge.innerHTML = `<i class="bi bi-geo-alt-fill"></i> GPS Ready (${dist !== null ? dist + 'm' : 'Acquired'})`;
+                if (gpsBadge) {
+                    gpsBadge.className = "badge bg-success-subtle text-success border border-success-subtle px-2 py-1 small";
+                    gpsBadge.innerHTML = `<i class="bi bi-geo-alt-fill"></i> GPS Ready (${dist !== null ? dist + 'm' : 'Acquired'})`;
+                }
 
                 // Pre-submission warning if outside geofence for geofenced sites
                 if (siteCoords.enabled && dist !== null && dist > siteCoords.radius) {
                     const warnBanner = document.getElementById("geofenceWarningBanner");
                     const warnText = document.getElementById("geofenceWarningText");
-                    warnBanner.style.setProperty("display", "flex", "important");
-                    warnText.innerHTML = `<strong>Location Warning:</strong> You appear to be <strong>${dist}m</strong> from your registered office (${siteCoords.radius}m allowed). This ${currentAction.replace('_', ' ')} will be flagged for administrative audit.`;
+                    if (warnBanner) warnBanner.style.setProperty("display", "flex", "important");
+                    if (warnText) warnText.innerHTML = `<strong>Location Warning:</strong> You appear to be <strong>${dist}m</strong> from your registered office (${siteCoords.radius}m allowed). This ${currentAction.replace('_', ' ')} will be flagged for administrative audit.`;
                 }
             },
             (err) => {
                 const gpsBadge = document.getElementById("liveGpsBadge");
-                gpsBadge.className = "badge bg-warning-subtle text-warning border border-warning-subtle px-2 py-1 small";
-                gpsBadge.innerHTML = `<i class="bi bi-exclamation-triangle"></i> GPS Denied/Offline`;
+                if (gpsBadge) {
+                    gpsBadge.className = "badge bg-warning-subtle text-warning border border-warning-subtle px-2 py-1 small";
+                    gpsBadge.innerHTML = `<i class="bi bi-exclamation-triangle"></i> GPS Denied/Offline`;
+                }
                 if (siteCoords.enabled) {
                     const warnBanner = document.getElementById("geofenceWarningBanner");
-                    warnBanner.style.setProperty("display", "flex", "important");
-                    document.getElementById("geofenceWarningText").innerText = "GPS coordinates unavailable. Check-in outside geofence will be flagged for review.";
+                    if (warnBanner) warnBanner.style.setProperty("display", "flex", "important");
+                    const warnText = document.getElementById("geofenceWarningText");
+                    if (warnText) warnText.innerText = "GPS coordinates unavailable. Check-in outside geofence will be flagged for review.";
                 }
             },
             { enableHighAccuracy: true, timeout: 8000 }
@@ -388,7 +638,7 @@ const startCamBtn = document.getElementById("startCamBtn");
 const stopCamBtn = document.getElementById("stopCamBtn");
 const actionBtn = document.getElementById("actionBtn");
 
-startCamBtn.addEventListener("click", async () => {
+startCamBtn?.addEventListener("click", async () => {
     try {
         currentStream = await navigator.mediaDevices.getUserMedia({
             video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: "user" },
@@ -404,7 +654,7 @@ startCamBtn.addEventListener("click", async () => {
     }
 });
 
-stopCamBtn.addEventListener("click", () => {
+stopCamBtn?.addEventListener("click", () => {
     if (currentStream) {
         currentStream.getTracks().forEach(t => t.stop());
         currentStream = null;
@@ -416,9 +666,9 @@ stopCamBtn.addEventListener("click", () => {
     document.getElementById("scannerStatusText").innerText = "Camera stopped.";
 });
 
-// Capture and Submit
-actionBtn.addEventListener("click", async () => {
-    const isDemo = document.getElementById("demoModeToggle").checked;
+// Method 1: Face Capture and Submit
+actionBtn?.addEventListener("click", async () => {
+    const isDemo = document.getElementById("demoModeToggle")?.checked || false;
     actionBtn.disabled = true;
     document.getElementById("actionBtnText").innerText = "Verifying...";
 
@@ -427,7 +677,7 @@ actionBtn.addEventListener("click", async () => {
     const progress = document.getElementById("challengeProgress");
     const instruction = document.getElementById("challengeInstruction");
     if (instruction) instruction.innerText = "Look into camera • Blink or move naturally...";
-    challengeBanner.style.display = "block";
+    if (challengeBanner) challengeBanner.style.display = "block";
 
     let livenessFrames = [];
     const canvas = document.createElement("canvas");
@@ -438,7 +688,7 @@ actionBtn.addEventListener("click", async () => {
     // Capture burst frames for liveness
     const totalFrames = 4;
     for (let i = 1; i <= totalFrames; i++) {
-        progress.style.width = Math.round((i / totalFrames) * 100) + "%";
+        if (progress) progress.style.width = Math.round((i / totalFrames) * 100) + "%";
         if (currentStream) {
             ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
             livenessFrames.push(canvas.toDataURL("image/jpeg", 0.85));
@@ -452,7 +702,7 @@ actionBtn.addEventListener("click", async () => {
         primaryPhoto = canvas.toDataURL("image/jpeg", 0.9);
     }
 
-    challengeBanner.style.display = "none";
+    if (challengeBanner) challengeBanner.style.display = "none";
 
     const endpoint = currentAction === "check_out" ? "/employee/check-out" : "/employee/check-in";
 
@@ -486,8 +736,14 @@ actionBtn.addEventListener("click", async () => {
             document.getElementById("confirmAddress").innerText = data.address || "Location Verified";
             document.getElementById("confirmDistance").innerText = data.distance_from_site_meters !== null && data.distance_from_site_meters !== undefined ? `${Math.round(data.distance_from_site_meters)}m` : "On Site";
 
+            // Method details
+            const confirmMethod = document.getElementById("confirmMethod");
+            if (confirmMethod) confirmMethod.innerText = "Face Recognition";
+            const manualBadge = document.getElementById("confirmManualBadge");
+            if (manualBadge) manualBadge.classList.add("d-none");
+
             const badge = document.getElementById("confirmStatusBadge");
-            badge.innerText = data.status.toUpperCase();
+            badge.innerText = (data.status || "on_time").toUpperCase();
             if (data.status === "flagged") {
                 badge.className = "badge bg-danger-subtle text-danger px-3 py-1 rounded-pill";
             } else if (data.status === "late") {
@@ -499,6 +755,8 @@ actionBtn.addEventListener("click", async () => {
             if (data.flagged) {
                 document.getElementById("confirmFlagNotice").style.display = "flex";
                 document.getElementById("confirmFlagReason").innerText = data.flag_reason || "Flagged for administrative review.";
+            } else {
+                document.getElementById("confirmFlagNotice").style.display = "none";
             }
 
             if (data.photo_url) {
@@ -529,6 +787,15 @@ actionBtn.addEventListener("click", async () => {
 
             modal.show();
         } else {
+            if (data.policy_mismatch) {
+                alert(data.message || "Your site now requires Manual Attendance for attendance — please refresh.");
+                window.location.reload();
+                return;
+            }
+            if (data.enrollment_required) {
+                alert(data.message || "Face enrollment required before marking attendance.");
+                return;
+            }
             alert("Verification Failed: " + (data.message || "Face or location check failed."));
         }
     } catch (err) {
@@ -536,6 +803,106 @@ actionBtn.addEventListener("click", async () => {
     } finally {
         actionBtn.disabled = false;
         document.getElementById("actionBtnText").innerText = currentAction === "check_out" ? "Check Out Now" : "Check In Now";
+    }
+});
+
+// Method 2: Manual Check In / Check Out (No Camera Required)
+const manualActionBtn = document.getElementById("manualActionBtn");
+manualActionBtn?.addEventListener("click", async () => {
+    const isDemo = document.getElementById("demoModeToggle")?.checked || false;
+    manualActionBtn.disabled = true;
+    const manualBtnText = document.getElementById("manualActionBtnText");
+    const prevText = manualBtnText ? manualBtnText.innerText : "Submit";
+    if (manualBtnText) manualBtnText.innerText = "Submitting...";
+
+    const endpoint = currentAction === "check_out" ? "/employee/manual-check-out" : "/employee/manual-check-in";
+
+    try {
+        const payload = {
+            latitude: userCoords.lat,
+            longitude: userCoords.lon,
+            bypass_cooldown: isDemo,
+            is_demo: isDemo
+        };
+
+        const res = await fetch(endpoint, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+        });
+
+        const data = await res.json();
+
+        if (data.success) {
+            // Show Confirmation Modal
+            const modal = new bootstrap.Modal(confirmModalEl);
+
+            const isOut = (data.event_type || currentAction) === "check_out";
+            document.getElementById("confirmModalTitle").innerText = isOut ? "Manual Check-Out Confirmed" : "Manual Check-In Confirmed";
+            document.getElementById("modalHeader").style.background = isOut ? "linear-gradient(135deg, #dc2626 0%, #ef4444 100%)" : "linear-gradient(135deg, #059669 0%, #10b981 100%)";
+            document.getElementById("confirmTime").innerText = data.timestamp_display || new Date().toLocaleTimeString();
+            document.getElementById("confirmAddress").innerText = data.address || "Location Verified";
+            document.getElementById("confirmDistance").innerText = data.distance_from_site_meters !== null && data.distance_from_site_meters !== undefined ? `${Math.round(data.distance_from_site_meters)}m` : "On Site";
+
+            // Hide biometric photo and display session manual badge
+            const photo = document.getElementById("confirmPhoto");
+            if (photo) photo.style.display = "none";
+            const manualBadge = document.getElementById("confirmManualBadge");
+            if (manualBadge) manualBadge.classList.remove("d-none");
+            const confirmMethod = document.getElementById("confirmMethod");
+            if (confirmMethod) confirmMethod.innerText = "Manual (Session Authenticated)";
+
+            const badge = document.getElementById("confirmStatusBadge");
+            badge.innerText = (data.status || "on_time").toUpperCase();
+            if (data.status === "flagged") {
+                badge.className = "badge bg-danger-subtle text-danger px-3 py-1 rounded-pill";
+            } else if (data.status === "late") {
+                badge.className = "badge bg-warning-subtle text-warning px-3 py-1 rounded-pill";
+            } else {
+                badge.className = "badge bg-success-subtle text-success px-3 py-1 rounded-pill";
+            }
+
+            if (data.flagged) {
+                document.getElementById("confirmFlagNotice").style.display = "flex";
+                document.getElementById("confirmFlagReason").innerText = data.flag_reason || "Flagged for administrative review.";
+            } else {
+                document.getElementById("confirmFlagNotice").style.display = "none";
+            }
+
+            // Immediately switch next action mode on UI
+            const nextMode = isOut ? "check_in" : "check_out";
+            setActionMode(nextMode);
+
+            // Update workforce status banner
+            const statusEl = document.getElementById("currentStatusText");
+            const statusIconWrap = document.getElementById("currentStatusIconWrap");
+            const statusIcon = document.getElementById("currentStatusIcon");
+            if (statusEl) {
+                if (isOut) {
+                    statusEl.innerText = `Checked out at ${data.timestamp_display || new Date().toLocaleTimeString()} (Manual)`;
+                    if (statusIconWrap) statusIconWrap.style.background = "#3b82f6";
+                    if (statusIcon) statusIcon.className = "bi bi-door-closed-fill";
+                } else {
+                    statusEl.innerText = `Checked in at ${data.timestamp_display || new Date().toLocaleTimeString()} (Manual)`;
+                    if (statusIconWrap) statusIconWrap.style.background = "#10b981";
+                    if (statusIcon) statusIcon.className = "bi bi-check-circle-fill";
+                }
+            }
+
+            modal.show();
+        } else {
+            if (data.policy_mismatch) {
+                alert(data.message || "Your site now requires Face Recognition for attendance — please refresh.");
+                window.location.reload();
+                return;
+            }
+            alert("Attendance Notice: " + (data.message || "Failed to process manual attendance."));
+        }
+    } catch (err) {
+        alert("Network or server error: " + err.message);
+    } finally {
+        manualActionBtn.disabled = false;
+        updateManualButtonUI();
     }
 });
 </script>

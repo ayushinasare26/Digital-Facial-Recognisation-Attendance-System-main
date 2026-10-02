@@ -58,6 +58,12 @@
                     <i class="bi bi-person-bounding-box text-primary"></i> Enrolled Reference Portrait
                 </div>
             </div>
+            {% elif record.attendance_method == 'manual' %}
+            <div class="p-4 text-center bg-light rounded-4 text-muted mb-3 border">
+                <i class="bi bi-person-check-fill fs-1 text-primary"></i>
+                <p class="small fw-semibold mt-2 mb-0 text-dark">Manual Attendance</p>
+                <p class="small text-muted mb-0">Authenticated via Server Session (No facial biometric image recorded)</p>
+            </div>
             {% else %}
             <div class="p-5 text-center bg-light rounded-4 text-muted mb-3">
                 <i class="bi bi-image fs-1 opacity-50"></i>
@@ -83,9 +89,17 @@
                     <span class="text-dark">{{ record.site_name or 'Remote & Field' }}</span>
                 </div>
                 <div class="d-flex justify-content-between py-1 small">
+                    <span class="text-muted">Attendance Method</span>
+                    <span class="badge {% if record.attendance_method == 'manual' %}bg-secondary-subtle text-secondary border{% else %}bg-primary-subtle text-primary border border-primary-subtle{% endif %}">
+                        <i class="bi {% if record.attendance_method == 'manual' %}bi-pencil-square{% else %}bi-camera-video{% endif %} me-1"></i>{{ 'Manual Attendance' if record.attendance_method == 'manual' else 'Facial Recognition' }}
+                    </span>
+                </div>
+                {% if record.attendance_method != 'manual' %}
+                <div class="d-flex justify-content-between py-1 small">
                     <span class="text-muted">Match Confidence</span>
                     <span class="badge bg-success-subtle text-success border border-success-subtle">{{ record.confidence_pct }}%</span>
                 </div>
+                {% endif %}
                 <div class="d-flex justify-content-between py-1 small">
                     <span class="text-muted">Punctuality / Status</span>
                     {% if record.flagged %}
@@ -148,8 +162,14 @@
             </ul>
             {% else %}
             <div class="p-4 text-center text-muted">
+                {% if record.attendance_method == 'manual' %}
+                <i class="bi bi-shield-check fs-2 text-primary mb-2 d-block"></i>
+                <h6 class="fw-bold text-dark">Method: Manual Attendance</h6>
+                <span class="small">Biometric facial pipeline was bypassed as requested. Identity verified via secure session authentication with GPS/geofence validation.</span>
+                {% else %}
                 <i class="bi bi-journal-text fs-2 opacity-50 mb-2 d-block"></i>
                 <span class="small">No stage telemetry logged for this record.</span>
+                {% endif %}
             </div>
             {% endif %}
         </div>

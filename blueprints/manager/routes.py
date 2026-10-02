@@ -237,6 +237,7 @@ def team_attendance():
     query = f"""
         SELECT a.id, a.employee_id, a.event_type, a.timestamp, a.address,
                a.distance_from_site_meters, a.within_geofence, a.status, a.flagged, a.flag_reason,
+               a.attendance_method,
                e.name, e.employee_code, d.name AS department_name, s.name AS site_name
         FROM attendance_events a
         JOIN employees e ON a.employee_id = e.id
@@ -265,6 +266,7 @@ def team_attendance():
         query_legacy = f"""
             SELECT a.id, a.student_id AS employee_id, 'check_in' AS event_type, a.timestamp, a.address,
                    a.distance_from_site_meters, a.within_geofence, a.status, a.flagged, a.flag_reason,
+                   a.attendance_method,
                    e.name, e.employee_code, d.name AS department_name, 'Headquarters' AS site_name
             FROM attendance a
             JOIN employees e ON a.student_id = e.id
@@ -287,6 +289,7 @@ def team_attendance():
             "department": ev["department_name"] or "General",
             "site": ev["site_name"] or "Headquarters",
             "event_type": ev.get("event_type", "check_in"),
+            "attendance_method": ev.get("attendance_method") or "face",
             "time_display": format_local_timestamp(ev["timestamp"], include_year=True),
             "status": ev.get("status") or "on_time",
             "within_geofence": bool(ev.get("within_geofence", 1)),

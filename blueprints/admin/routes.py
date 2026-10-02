@@ -20,7 +20,11 @@ from flask import (
     url_for, session, flash, abort, send_file
 )
 from . import admin_bp
-from core.db import get_db_connection, get_setting, set_setting, log_audit
+from core.db import (
+    get_db_connection, get_setting, set_setting, log_audit,
+    get_effective_attendance_policy, get_all_sites_attendance_policies,
+    update_attendance_policies, VALID_ATTENDANCE_POLICIES
+)
 from core.auth import (
     login_required_admin,
     authenticate_admin,
@@ -159,7 +163,7 @@ def dashboard():
     c.execute("""
         SELECT a.id, a.employee_id, a.event_type, a.timestamp, a.latitude, a.longitude,
                a.address, a.distance_from_site_meters, a.within_geofence, a.status,
-               a.flagged, a.flag_reason, a.geotagged_photo_path,
+               a.flagged, a.flag_reason, a.geotagged_photo_path, a.attendance_method,
                e.name, e.employee_code, d.name AS department_name, s.name AS site_name
         FROM attendance_events a
         JOIN employees e ON a.employee_id = e.id
@@ -186,7 +190,8 @@ def dashboard():
             "distance_meters": r["distance_from_site_meters"],
             "flagged": bool(r["flagged"]),
             "flag_reason": r["flag_reason"] or "—",
-            "photo_path": r["geotagged_photo_path"]
+            "photo_path": r["geotagged_photo_path"],
+            "attendance_method": r["attendance_method"] if "attendance_method" in r.keys() and r["attendance_method"] else "face"
         })
 
     # Fallback to legacy attendance if no recent in attendance_events
@@ -194,7 +199,7 @@ def dashboard():
         c.execute("""
             SELECT a.id, a.student_id AS employee_id, 'check_in' as event_type, a.timestamp, a.latitude, a.longitude,
                    a.address, a.distance_from_site_meters, a.within_geofence, a.status,
-                   a.flagged, a.flag_reason, a.geotagged_photo_path,
+                   a.flagged, a.flag_reason, a.geotagged_photo_path, a.attendance_method,
                    s.name, s.roll AS employee_code, s.class AS department_name
             FROM attendance a
             LEFT JOIN students s ON a.student_id = s.id
@@ -216,7 +221,8 @@ def dashboard():
                 "distance_meters": r["distance_from_site_meters"],
                 "flagged": bool(r["flagged"]) if r["flagged"] is not None else (r["status"] == "flagged"),
                 "flag_reason": r["flag_reason"] or "—",
-                "photo_path": r["geotagged_photo_path"]
+                "photo_path": r["geotagged_photo_path"],
+                "attendance_method": r["attendance_method"] if "attendance_method" in r.keys() and r["attendance_method"] else "face"
             })
 
     conn.close()
@@ -725,7 +731,7 @@ def attendance_records():
     query = """
         SELECT a.id, a.employee_id, a.event_type, a.timestamp, a.latitude, a.longitude,
                a.address, a.distance_from_site_meters, a.within_geofence, a.status,
-               a.flagged, a.flag_reason, a.geotagged_photo_path,
+               a.flagged, a.flag_reason, a.geotagged_photo_path, a.attendance_method,
                e.name, e.employee_code, d.name AS department_name, s.name AS site_name,
                sh.name AS shift_name
         FROM attendance_events a
@@ -769,7 +775,7 @@ def attendance_records():
         c.execute("""
             SELECT a.id, a.student_id AS employee_id, a.event_type, a.timestamp, a.latitude, a.longitude,
                    a.address, a.distance_from_site_meters, a.within_geofence, a.status,
-                   a.flagged, a.flag_reason, a.geotagged_photo_path,
+                   a.flagged, a.flag_reason, a.geotagged_photo_path, a.attendance_method,
                    s.name, s.roll AS employee_code, s.class AS department_name, 'Headquarters' AS site_name, 'General Shift' AS shift_name
             FROM attendance a
             LEFT JOIN students s ON a.student_id = s.id
@@ -780,6 +786,7 @@ def attendance_records():
     for r in rows:
         r["time_display"] = format_local_timestamp(r["timestamp"], include_year=True)
         r["within_geofence"] = bool(r.get("within_geofence", 1))
+        r["attendance_method"] = r.get("attendance_method") or "face"
 
     c.execute("SELECT id, name FROM sites ORDER BY name")
     sites = c.fetchall()
@@ -818,6 +825,7 @@ def flagged_queue():
         SELECT a.id, a.employee_id, a.event_type, a.timestamp, a.latitude, a.longitude,
                a.address, a.distance_from_site_meters, a.within_geofence, a.confidence,
                a.status, a.flagged, a.flag_reason, a.geotagged_photo_path, a.review_note,
+               a.attendance_method,
                e.name, e.employee_code, d.name AS department_name, s.name AS site_name
         FROM attendance_events a
         JOIN employees e ON a.employee_id = e.id
@@ -833,6 +841,7 @@ def flagged_queue():
             SELECT a.id, a.student_id AS employee_id, a.event_type, a.timestamp, a.latitude, a.longitude,
                    a.address, a.distance_from_site_meters, a.within_geofence, a.confidence,
                    a.status, a.flagged, a.flag_reason, a.geotagged_photo_path, a.review_note,
+                   a.attendance_method,
                    s.name, s.roll AS employee_code, s.class AS department_name, 'Headquarters' AS site_name
             FROM attendance a
             LEFT JOIN students s ON a.student_id = s.id
@@ -1115,6 +1124,7 @@ def audit_logs():
 @admin_bp.route("/settings", methods=["GET", "POST"])
 @login_required_admin
 def settings():
+    admin_id = session.get("admin_id")
     if request.method == "POST":
         match_th = request.form.get("match_threshold", "0.48")
         review_th = request.form.get("review_threshold", "0.44")
@@ -1126,20 +1136,70 @@ def settings():
         set_setting("duplicate_cooldown_seconds", cooldown)
         set_setting("geocoding_provider", geocoding_prov)
 
-        flash("Recognition engine settings updated successfully.", "success")
+        # Handle Attendance Method Policy form data if submitted
+        global_pol = request.form.get("global_attendance_policy")
+        if global_pol in VALID_ATTENDANCE_POLICIES:
+            site_overrides = {}
+            for k, v in request.form.items():
+                if k.startswith("site_policy_"):
+                    s_id = k.replace("site_policy_", "")
+                    site_overrides[s_id] = v
+            update_attendance_policies(global_pol, site_overrides, actor_id=admin_id, actor_role="admin")
+
+        flash("Recognition engine settings and attendance method policies updated successfully.", "success")
 
     match_th = get_setting("match_threshold", str(Config.MATCH_THRESHOLD))
     review_th = get_setting("review_threshold", str(Config.REVIEW_THRESHOLD))
     cooldown = get_setting("duplicate_cooldown_seconds", str(Config.DUPLICATE_COOLDOWN_SECONDS))
     geocoding_prov = get_setting("geocoding_provider", Config.GEOCODING_PROVIDER)
+    global_attendance_policy = get_setting("global_attendance_policy", "both")
+    sites_policies = get_all_sites_attendance_policies()
 
     return render_template(
         "admin/settings.html",
         match_threshold=match_th,
         review_threshold=review_th,
         cooldown=cooldown,
-        geocoding_provider=geocoding_prov
+        geocoding_provider=geocoding_prov,
+        global_attendance_policy=global_attendance_policy,
+        sites_policies=sites_policies
     )
+
+@admin_bp.route("/api/admin/settings/attendance-policy", methods=["GET", "POST"])
+@login_required_admin
+def api_attendance_policy():
+    admin_id = session.get("admin_id")
+    if request.method == "POST":
+        data = request.get_json(silent=True) or request.form or {}
+        global_pol = data.get("global_attendance_policy") or "both"
+        site_overrides = data.get("site_overrides") or {}
+
+        # Handle form-encoded format if not JSON dict
+        if not site_overrides:
+            for k, v in data.items():
+                if k.startswith("site_policy_"):
+                    s_id = k.replace("site_policy_", "")
+                    site_overrides[s_id] = v
+
+        if global_pol not in VALID_ATTENDANCE_POLICIES:
+            return jsonify({"success": False, "error": f"Invalid policy: '{global_pol}'"}), 400
+
+        res = update_attendance_policies(global_pol, site_overrides, actor_id=admin_id, actor_role="admin")
+        updated_sites = get_all_sites_attendance_policies()
+        return jsonify({
+            "success": True,
+            "message": "Attendance method policies updated successfully. Changes take effect immediately.",
+            "global_policy": global_pol,
+            "sites": updated_sites,
+            "changes": res
+        })
+
+    # GET
+    return jsonify({
+        "success": True,
+        "global_attendance_policy": get_setting("global_attendance_policy", "both"),
+        "sites": get_all_sites_attendance_policies()
+    })
 
 # Face upload endpoint
 @admin_bp.route("/upload-face", methods=["POST"])

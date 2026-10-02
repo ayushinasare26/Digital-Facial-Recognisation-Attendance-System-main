@@ -129,6 +129,7 @@
                         <th class="ps-4">Date</th>
                         <th>Check-In Time</th>
                         <th>Check-Out Time</th>
+                        <th>Method</th>
                         <th>Regular Hours</th>
                         <th>Overtime</th>
                         <th>Total Net</th>
@@ -158,6 +159,30 @@
                                 <span class="badge bg-primary-subtle text-primary border border-primary-subtle">{{ r.check_out_time }}</span>
                                 {% else %}
                                 <span class="text-muted">—</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if r.check_in_time != '—' or r.check_out_time != '—' %}
+                                    {% if r.check_in_method == r.check_out_method and r.check_in_method != '—' %}
+                                        <span class="badge {% if r.check_in_method == 'manual' %}bg-secondary-subtle text-secondary border{% else %}bg-primary-subtle text-primary border border-primary-subtle{% endif %}">
+                                            <i class="bi {% if r.check_in_method == 'manual' %}bi-pencil-square{% else %}bi-camera-video{% endif %} me-1"></i>{{ r.check_in_method|title }}
+                                        </span>
+                                    {% else %}
+                                        <div class="d-flex flex-column gap-1" style="font-size: 0.72rem;">
+                                            {% if r.check_in_time != '—' %}
+                                            <span class="badge {% if r.check_in_method == 'manual' %}bg-secondary-subtle text-secondary border{% else %}bg-primary-subtle text-primary border border-primary-subtle{% endif %} text-start">
+                                                In: {{ r.check_in_method|title if r.check_in_method else 'Face' }}
+                                            </span>
+                                            {% endif %}
+                                            {% if r.check_out_time != '—' %}
+                                            <span class="badge {% if r.check_out_method == 'manual' %}bg-secondary-subtle text-secondary border{% else %}bg-primary-subtle text-primary border border-primary-subtle{% endif %} text-start">
+                                                Out: {{ r.check_out_method|title if r.check_out_method else 'Face' }}
+                                            </span>
+                                            {% endif %}
+                                        </div>
+                                    {% endif %}
+                                {% else %}
+                                    <span class="text-muted">—</span>
                                 {% endif %}
                             </td>
                             <td>
@@ -216,7 +241,7 @@
                         {% endfor %}
                     {% else %}
                         <tr>
-                            <td colspan="8" class="text-center py-4 text-muted">
+                            <td colspan="9" class="text-center py-4 text-muted">
                                 No attendance records found for this criteria.
                             </td>
                         </tr>

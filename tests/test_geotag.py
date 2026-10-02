@@ -33,9 +33,17 @@ class TestGeotag(unittest.TestCase):
             status="success"
         )
         self.assertTrue(os.path.exists(output_rel))
-        # Verify file is readable as an image
         with Image.open(output_rel) as img:
             self.assertEqual(img.size, (400, 300))
+
+    def tearDown(self):
+        if os.path.exists("attendance_photos"):
+            for f in os.listdir("attendance_photos"):
+                if f.startswith("999_"):
+                    try:
+                        os.remove(os.path.join("attendance_photos", f))
+                    except OSError:
+                        pass
 
 if __name__ == "__main__":
     unittest.main()
